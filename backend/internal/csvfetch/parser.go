@@ -1,9 +1,10 @@
-package sponsor
+package csvfetch
 
 import (
 	"encoding/csv"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 )
@@ -11,7 +12,7 @@ import (
 // OpenStream opens an HTTP connection and returns a stream to read from.
 // The caller is responsible for closing the stream.
 func OpenStream(url string) (io.ReadCloser, error) {
-	resp, err := http.Get(url)
+	resp, err := httpClient.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download: %w", err)
 	}
@@ -45,18 +46,24 @@ func Parse(r io.Reader) ([]Record, error) {
 	}
 
 	var records []Record
+	lineNumber := 1 // Header was line 1
 	for {
+		lineNumber++
 		row, err := reader.Read()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			return nil, fmt.Errorf("failed to read row: %w", err)
+			return nil, fmt.Errorf("failed to read row %d: %w", lineNumber, err)
 		}
 
 		record, err := parseRow(row)
 		if err != nil {
-			// Log and skip malformed rows
+			slog.Warn("skipping malformed row",
+				"line", lineNumber,
+				"error", err,
+				"row", row,
+			)
 			continue
 		}
 		records = append(records, record)

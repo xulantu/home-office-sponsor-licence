@@ -1,4 +1,4 @@
-package sponsor
+package csvfetch
 
 // Record represents a single sponsor licence entry from the Home Office CSV
 type Record struct {

@@ -1,4 +1,4 @@
-package sponsor
+package csvfetch
 
 import (
 	"strings"

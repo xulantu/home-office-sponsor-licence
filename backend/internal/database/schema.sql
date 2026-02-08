@@ -21,8 +21,8 @@ CREATE TABLE licences (
     licence_type VARCHAR(50) NOT NULL,      -- 'Worker' or 'Temporary Worker'
     rating VARCHAR(20) NOT NULL,            -- 'A rating', 'B rating'
     route VARCHAR(100) NOT NULL,            -- 'Skilled Worker', etc.
-    valid_from DATE,                        -- NULL = existed before tracking began
-    valid_to DATE                           -- NULL = still active
+    valid_from TIMESTAMPTZ DEFAULT NOW(),   -- NULL = existed before tracking began
+    valid_to TIMESTAMPTZ                    -- NULL = still active
 );
 
 CREATE INDEX idx_licences_organisation ON licences(organisation_id);

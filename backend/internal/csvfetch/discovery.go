@@ -1,4 +1,4 @@
-package sponsor
+package csvfetch
 
 import (
 	"fmt"
@@ -12,9 +12,13 @@ const (
 	HomeOfficePageURL = "https://www.gov.uk/government/publications/register-of-licensed-sponsors-workers"
 )
 
+// csvURLPattern matches CSV download URLs on the gov.uk assets domain.
+// Compiled once at package init for performance.
+var csvURLPattern = regexp.MustCompile(`https://assets\.publishing\.service\.gov\.uk/[^"]+\.csv`)
+
 // DiscoverCSVURL fetches the Home Office page and extracts the CSV download link
 func DiscoverCSVURL() (string, error) {
-	resp, err := http.Get(HomeOfficePageURL)
+	resp, err := httpClient.Get(HomeOfficePageURL)
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch page: %w", err)
 	}
@@ -34,11 +38,7 @@ func DiscoverCSVURL() (string, error) {
 
 // extractCSVURL finds the CSV link in the HTML page
 func extractCSVURL(html string) (string, error) {
-	// Pattern matches URLs ending in .csv on the assets domain
-	pattern := `https://assets\.publishing\.service\.gov\.uk/[^"]+\.csv`
-	re := regexp.MustCompile(pattern)
-
-	match := re.FindString(html)
+	match := csvURLPattern.FindString(html)
 	if match == "" {
 		return "", fmt.Errorf("CSV URL not found in page")
 	}
