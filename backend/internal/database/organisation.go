@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -43,7 +44,7 @@ func InsertOrganisation(ctx context.Context, pool *pgxpool.Pool, org Organisatio
 	}
 
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("insert organisation: %w", err)
 	}
 	return id, nil
 }
@@ -66,7 +67,7 @@ func FindOrganisation(ctx context.Context, pool *pgxpool.Pool, name, townCity, c
 		return Organisation{}, false, nil
 	}
 	if err != nil {
-		return Organisation{}, false, err
+		return Organisation{}, false, fmt.Errorf("find organisation: %w", err)
 	}
 	return org, true, nil
 }
@@ -82,7 +83,7 @@ func GetOrganisationByID(ctx context.Context, pool *pgxpool.Pool, id int) (Organ
 	).Scan(&org.ID, &org.Name, &org.TownCity, &org.County, &org.CreatedAt, &org.DeletedAt)
 
 	if err != nil {
-		return Organisation{}, err
+		return Organisation{}, fmt.Errorf("get organisation by id: %w", err)
 	}
 	return org, nil
 }

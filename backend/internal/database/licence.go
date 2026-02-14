@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -45,7 +46,7 @@ func InsertLicence(ctx context.Context, pool *pgxpool.Pool, lic Licence, initial
 	}
 
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("insert licence: %w", err)
 	}
 	return id, nil
 }
@@ -66,7 +67,7 @@ func FindActiveLicence(ctx context.Context, pool *pgxpool.Pool, orgID int, route
 		return Licence{}, false, nil
 	}
 	if err != nil {
-		return Licence{}, false, err
+		return Licence{}, false, fmt.Errorf("find active licence: %w", err)
 	}
 	return lic, true, nil
 }
@@ -77,7 +78,10 @@ func CloseLicence(ctx context.Context, pool *pgxpool.Pool, licenceID int) error 
 		`UPDATE licences SET valid_to = NOW() WHERE id = $1`,
 		licenceID,
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("close licence: %w", err)
+	}
+	return nil
 }
 
 // GetLicencesForOrg retrieves all licences (including history) for an organisation
@@ -90,7 +94,7 @@ func GetLicencesForOrg(ctx context.Context, pool *pgxpool.Pool, orgID int) ([]Li
 		orgID,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get licences for org: %w", err)
 	}
 	defer rows.Close()
 
@@ -99,7 +103,7 @@ func GetLicencesForOrg(ctx context.Context, pool *pgxpool.Pool, orgID int) ([]Li
 		var lic Licence
 		err := rows.Scan(&lic.ID, &lic.OrganisationID, &lic.LicenceType, &lic.Rating, &lic.Route, &lic.ValidFrom, &lic.ValidTo)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("get licences for org: scan row: %w", err)
 		}
 		licences = append(licences, lic)
 	}

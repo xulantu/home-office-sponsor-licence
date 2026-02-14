@@ -1,20 +1,30 @@
 package database
 
 import (
-	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"sponsor-tracker/internal/config"
 )
 
 // getTestPool creates a connection pool for testing.
-// Fails the test if TEST_DATABASE_URL is not set.
+// Loads configuration from config.yaml and .env in the backend directory.
 func getTestPool(t *testing.T) *pgxpool.Pool {
-	connString := os.Getenv("TEST_DATABASE_URL")
-	if connString == "" {
-		t.Fatal("TEST_DATABASE_URL not set")
+	// Find the backend directory (where config.yaml lives)
+	_, thisFile, _, _ := runtime.Caller(0)
+	backendDir := filepath.Join(filepath.Dir(thisFile), "..", "..")
+
+	configPath := filepath.Join(backendDir, "config.yaml")
+	envPath := filepath.Join(backendDir, ".env")
+
+	cfg, err := config.Load(configPath, envPath)
+	if err != nil {
+		t.Fatalf("Failed to load config: %v", err)
 	}
 
+	connString := cfg.TestDatabase.ConnectionString()
 	pool, err := Connect(connString)
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
