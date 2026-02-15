@@ -44,3 +44,20 @@ func (r *PostgresLicenceRepository) Insert(ctx context.Context, lic database.Lic
 func (r *PostgresLicenceRepository) Close(ctx context.Context, licenceID int) error {
 	return database.CloseLicence(ctx, r.pool, licenceID)
 }
+
+// PostgresConfigRepository implements ConfigRepository using PostgreSQL.
+type PostgresConfigRepository struct {
+	pool *pgxpool.Pool
+}
+
+func NewPostgresConfigRepository(pool *pgxpool.Pool) *PostgresConfigRepository {
+	return &PostgresConfigRepository{pool: pool}
+}
+
+func (r *PostgresConfigRepository) GetValue(ctx context.Context, name, key string) (string, bool, error) {
+	return database.GetConfigValue(ctx, r.pool, name, key)
+}
+
+func (r *PostgresConfigRepository) SetValue(ctx context.Context, name, key, value string) error {
+	return database.SetConfigValue(ctx, r.pool, name, key, value)
+}

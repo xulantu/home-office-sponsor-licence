@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"sponsor-tracker/internal/csvfetch"
 	"sponsor-tracker/internal/database"
@@ -44,26 +45,40 @@ type LicenceRepository interface {
 	Close(ctx context.Context, licenceID int) error
 }
 
+// ConfigRepository handles application config database operations
+type ConfigRepository interface {
+	GetValue(ctx context.Context, name, key string) (string, bool, error)
+	SetValue(ctx context.Context, name, key, value string) error
+}
+
 // Syncer synchronises the database with gov.uk data
 type Syncer struct {
 	fetcher  CSVFetcher
 	orgs     OrgRepository
 	licences LicenceRepository
+	config   ConfigRepository
 }
 
 // NewSyncer creates a Syncer with the given dependencies.
-func NewSyncer(fetcher CSVFetcher, orgs OrgRepository, licences LicenceRepository) *Syncer {
+func NewSyncer(fetcher CSVFetcher, orgs OrgRepository, licences LicenceRepository, config ConfigRepository) *Syncer {
 	return &Syncer{
 		fetcher:  fetcher,
 		orgs:     orgs,
 		licences: licences,
+		config:   config,
 	}
 }
 
 // Run syncs the database with the current gov.uk CSV.
-// If initialRun is true, created_at and valid_from will be NULL.
-func (s *Syncer) Run(ctx context.Context, initialRun bool) (*Result, error) {
+// It checks the config table to determine if this is the initial run.
+func (s *Syncer) Run(ctx context.Context) (*Result, error) {
 	result := &Result{}
+
+	_, initialRun, err := s.config.GetValue(ctx, "InitialRunDateTime", "Default")
+	if err != nil {
+		return nil, fmt.Errorf("check initial run: %w", err)
+	}
+	slog.Info("sync starting", "initial_run", initialRun)
 
 	records, err := s.fetcher.FetchRecords()
 	if err != nil {
@@ -74,6 +89,14 @@ func (s *Syncer) Run(ctx context.Context, initialRun bool) (*Result, error) {
 	for _, rec := range records {
 		s.processRecord(ctx, rec, initialRun, result)
 	}
+
+	if initialRun {
+		now := time.Now().UTC().Format(time.RFC3339)
+		if err := s.config.SetValue(ctx, "InitialRunDateTime", "Default", now); err != nil {
+			return result, fmt.Errorf("set initial run time: %w", err)
+		}
+	}
+
 	return result, nil
 }
 

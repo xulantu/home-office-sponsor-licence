@@ -29,7 +29,7 @@ func TestProcessOrg_ExistingOrg_ReturnsIDAndFalse(t *testing.T) {
 		},
 	}
 
-	s := NewSyncer(nil, orgs, nil)
+	s := NewSyncer(nil, orgs, nil, nil)
 
 	rec := csvfetch.Record{
 		OrganisationName: "Acme Ltd",

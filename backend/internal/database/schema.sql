@@ -1,6 +1,15 @@
 -- Schema for UK Sponsor Licence Tracker
 -- PostgreSQL with Temporal Approach
 
+-- Application configuration / metadata
+CREATE TABLE config (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    key VARCHAR(255) NOT NULL,
+    value VARCHAR(500) NOT NULL,
+    UNIQUE(name, key)
+);
+
 -- Organisations (sponsors)
 CREATE TABLE organisations (
     id SERIAL PRIMARY KEY,

@@ -17,8 +17,14 @@ type DatabaseConfig struct {
 	User string `yaml:"user"`
 }
 
+// ServerConfig holds HTTP server settings
+type ServerConfig struct {
+	Port int `yaml:"port"`
+}
+
 // Config holds all application configuration
 type Config struct {
+	Server       ServerConfig   `yaml:"server"`
 	Database     DatabaseConfig `yaml:"database"`
 	TestDatabase DatabaseConfig `yaml:"test_database"`
 }
