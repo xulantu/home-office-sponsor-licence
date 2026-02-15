@@ -81,6 +81,33 @@ func TestInsertAndFindLicence(t *testing.T) {
 	pool.Exec(ctx, `DELETE FROM organisations WHERE id = $1`, orgID)
 }
 
+func TestFindActiveLicence_DistinguishesByLicenceType(t *testing.T) {
+	pool := getTestPool(t)
+	defer pool.Close()
+	ctx := context.Background()
+
+	pool.Exec(ctx, `DELETE FROM licences`)
+	pool.Exec(ctx, `DELETE FROM organisations`)
+
+	orgID, _ := InsertOrganisation(ctx, pool, Organisation{Name: "Multi Type Ltd", TownCity: "London", County: ""}, false)
+
+	workerID, _ := InsertLicence(ctx, pool, Licence{OrganisationID: orgID, LicenceType: "Worker", Rating: "A rating", Route: "Skilled Worker"}, false)
+	tempID, _ := InsertLicence(ctx, pool, Licence{OrganisationID: orgID, LicenceType: "Temporary Worker", Rating: "A rating", Route: "Skilled Worker"}, false)
+
+	worker, ok, err := FindActiveLicence(ctx, pool, orgID, "Worker", "Skilled Worker")
+	if err != nil { t.Fatalf("unexpected error: %v", err) }
+	if !ok { t.Fatal("Worker licence not found") }
+	if worker.ID != workerID { t.Errorf("got ID=%d, want %d", worker.ID, workerID) }
+
+	temp, ok, err := FindActiveLicence(ctx, pool, orgID, "Temporary Worker", "Skilled Worker")
+	if err != nil { t.Fatalf("unexpected error: %v", err) }
+	if !ok { t.Fatal("Temporary Worker licence not found") }
+	if temp.ID != tempID { t.Errorf("got ID=%d, want %d", temp.ID, tempID) }
+
+	pool.Exec(ctx, `DELETE FROM licences`)
+	pool.Exec(ctx, `DELETE FROM organisations`)
+}
+
 func TestGetAllActiveLicences_ExcludesClosed(t *testing.T) {
 	pool := getTestPool(t)
 	defer pool.Close()

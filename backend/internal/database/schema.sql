@@ -38,7 +38,7 @@ CREATE INDEX idx_licences_organisation ON licences(organisation_id);
 CREATE INDEX idx_licences_valid_range ON licences(valid_from, valid_to);
 CREATE INDEX idx_licences_route ON licences(route);
 
-CREATE INDEX idx_licences_current ON licences(organisation_id, route)
+CREATE INDEX idx_licences_current ON licences(organisation_id, licence_type, route)
     WHERE valid_to IS NULL;
 
 -- ============================================

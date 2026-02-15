@@ -40,10 +40,11 @@ func GetInitialRunTime(ctx context.Context, pool *pgxpool.Pool) (string, bool, e
 	return value, true, nil
 }
 
-// SetConfigValue inserts a new row into the config table.
+// SetConfigValue inserts or updates a value in the config table.
 func SetConfigValue(ctx context.Context, pool *pgxpool.Pool, name, key, value string) error {
 	_, err := pool.Exec(ctx,
-		`INSERT INTO config (name, key, value) VALUES ($1, $2, $3)`,
+		`INSERT INTO config (name, key, value) VALUES ($1, $2, $3)
+		 ON CONFLICT (name, key) DO UPDATE SET value = $3`,
 		name, key, value,
 	)
 	if err != nil {
