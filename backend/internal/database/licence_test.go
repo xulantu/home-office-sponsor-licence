@@ -41,7 +41,7 @@ func TestInsertAndFindLicence(t *testing.T) {
 	t.Logf("Inserted licence with ID: %d", licID)
 
 	// Find active licence
-	found, ok, err := FindActiveLicence(ctx, pool, orgID, "Skilled Worker")
+	found, ok, err := FindActiveLicence(ctx, pool, orgID, "Worker", "Skilled Worker")
 	if err != nil {
 		t.Fatalf("FindActiveLicence failed: %v", err)
 	}
@@ -59,7 +59,7 @@ func TestInsertAndFindLicence(t *testing.T) {
 	}
 
 	// Should not find active licence anymore
-	_, ok, err = FindActiveLicence(ctx, pool, orgID, "Skilled Worker")
+	_, ok, err = FindActiveLicence(ctx, pool, orgID, "Worker", "Skilled Worker")
 	if err != nil {
 		t.Fatalf("FindActiveLicence failed: %v", err)
 	}
@@ -68,15 +68,38 @@ func TestInsertAndFindLicence(t *testing.T) {
 	}
 
 	// But should appear in history
-	history, err := GetLicencesForOrg(ctx, pool, orgID)
+	history, err := GetAllLicencesForOrg(ctx, pool, orgID)
 	if err != nil {
-		t.Fatalf("GetLicencesForOrg failed: %v", err)
+		t.Fatalf("GetAllLicencesForOrg failed: %v", err)
 	}
 	if len(history) != 1 {
 		t.Errorf("Expected 1 licence in history, got %d", len(history))
 	}
 
 	// Clean up
+	pool.Exec(ctx, `DELETE FROM licences WHERE organisation_id = $1`, orgID)
+	pool.Exec(ctx, `DELETE FROM organisations WHERE id = $1`, orgID)
+}
+
+func TestGetAllActiveLicences_ExcludesClosed(t *testing.T) {
+	pool := getTestPool(t)
+	defer pool.Close()
+	ctx := context.Background()
+
+	pool.Exec(ctx, `DELETE FROM licences`)
+	pool.Exec(ctx, `DELETE FROM organisations`)
+
+	orgID, _ := InsertOrganisation(ctx, pool, Organisation{Name: "Test Active Lic", TownCity: "London", County: ""}, false)
+
+	activeID, _ := InsertLicence(ctx, pool, Licence{OrganisationID: orgID, LicenceType: "Worker", Rating: "A rating", Route: "Skilled Worker"}, false)
+	closedID, _ := InsertLicence(ctx, pool, Licence{OrganisationID: orgID, LicenceType: "Worker", Rating: "B rating", Route: "Skilled Worker"}, false)
+	CloseLicence(ctx, pool, closedID)
+
+	licences, err := GetAllActiveLicences(ctx, pool)
+	if err != nil { t.Fatalf("unexpected error: %v", err) }
+	if len(licences) != 1 { t.Fatalf("got %d licences, want 1", len(licences)) }
+	if licences[0].ID != activeID { t.Errorf("got ID=%d, want %d", licences[0].ID, activeID) }
+
 	pool.Exec(ctx, `DELETE FROM licences WHERE organisation_id = $1`, orgID)
 	pool.Exec(ctx, `DELETE FROM organisations WHERE id = $1`, orgID)
 }

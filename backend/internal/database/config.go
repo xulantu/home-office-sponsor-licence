@@ -28,16 +28,16 @@ func GetConfigValue(ctx context.Context, pool *pgxpool.Pool, name, key string) (
 }
 
 // GetInitialRunTime checks whether the initial sync has been performed.
-// Returns the timestamp and false if it has, or empty string and true if it hasn't.
+// Returns the timestamp and true if it has, or empty string and false if it hasn't.
 func GetInitialRunTime(ctx context.Context, pool *pgxpool.Pool) (string, bool, error) {
 	value, found, err := GetConfigValue(ctx, pool, "InitialRunDateTime", "Default")
 	if err != nil {
 		return "", false, fmt.Errorf("get initial run time: %w", err)
 	}
 	if !found {
-		return "", true, nil
+		return "", false, nil
 	}
-	return value, false, nil
+	return value, true, nil
 }
 
 // SetConfigValue inserts a new row into the config table.

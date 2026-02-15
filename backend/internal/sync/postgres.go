@@ -17,11 +17,19 @@ func NewPostgresOrgRepository(pool *pgxpool.Pool) *PostgresOrgRepository {
 }
 
 func (r *PostgresOrgRepository) Find(ctx context.Context, name, townCity, county string) (database.Organisation, bool, error) {
-	return database.FindOrganisation(ctx, r.pool, name, townCity, county)
+	return database.FindActiveOrganisation(ctx, r.pool, name, townCity, county)
 }
 
 func (r *PostgresOrgRepository) Insert(ctx context.Context, org database.Organisation, initialRun bool) (int, error) {
 	return database.InsertOrganisation(ctx, r.pool, org, initialRun)
+}
+
+func (r *PostgresOrgRepository) Close(ctx context.Context, orgID int) error {
+	return database.CloseOrganisation(ctx, r.pool, orgID)
+}
+
+func (r *PostgresOrgRepository) GetAllActive(ctx context.Context) ([]database.Organisation, error) {
+	return database.GetAllActiveOrganisations(ctx, r.pool)
 }
 
 // PostgresLicenceRepository implements LicenceRepository using PostgreSQL.
@@ -33,8 +41,8 @@ func NewPostgresLicenceRepository(pool *pgxpool.Pool) *PostgresLicenceRepository
 	return &PostgresLicenceRepository{pool: pool}
 }
 
-func (r *PostgresLicenceRepository) FindActive(ctx context.Context, orgID int, route string) (database.Licence, bool, error) {
-	return database.FindActiveLicence(ctx, r.pool, orgID, route)
+func (r *PostgresLicenceRepository) FindActive(ctx context.Context, orgID int, licenceType, route string) (database.Licence, bool, error) {
+	return database.FindActiveLicence(ctx, r.pool, orgID, licenceType, route)
 }
 
 func (r *PostgresLicenceRepository) Insert(ctx context.Context, lic database.Licence, initialRun bool) (int, error) {
@@ -43,6 +51,10 @@ func (r *PostgresLicenceRepository) Insert(ctx context.Context, lic database.Lic
 
 func (r *PostgresLicenceRepository) Close(ctx context.Context, licenceID int) error {
 	return database.CloseLicence(ctx, r.pool, licenceID)
+}
+
+func (r *PostgresLicenceRepository) GetAllActive(ctx context.Context) ([]database.Licence, error) {
+	return database.GetAllActiveLicences(ctx, r.pool)
 }
 
 // PostgresConfigRepository implements ConfigRepository using PostgreSQL.
@@ -61,3 +73,8 @@ func (r *PostgresConfigRepository) GetValue(ctx context.Context, name, key strin
 func (r *PostgresConfigRepository) SetValue(ctx context.Context, name, key, value string) error {
 	return database.SetConfigValue(ctx, r.pool, name, key, value)
 }
+
+func (r *PostgresConfigRepository) GetInitialRunTime(ctx context.Context) (string, bool, error) {
+	return database.GetInitialRunTime(ctx, r.pool)
+}
+

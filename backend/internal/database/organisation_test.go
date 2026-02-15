@@ -32,9 +32,9 @@ func TestInsertAndFindOrganisation(t *testing.T) {
 	t.Logf("Inserted organisation with ID: %d", id)
 
 	// Find
-	found, ok, err := FindOrganisation(ctx, pool, org.Name, org.TownCity, org.County)
+	found, ok, err := FindActiveOrganisation(ctx, pool, org.Name, org.TownCity, org.County)
 	if err != nil {
-		t.Fatalf("FindOrganisation failed: %v", err)
+		t.Fatalf("FindActiveOrganisation failed: %v", err)
 	}
 	if !ok {
 		t.Fatal("Organisation not found")
@@ -57,4 +57,27 @@ func TestInsertAndFindOrganisation(t *testing.T) {
 
 	// Clean up
 	pool.Exec(ctx, `DELETE FROM organisations WHERE id = $1`, id)
+}
+
+func TestGetAllActiveOrganisations_ReturnsSortedByName(t *testing.T) {
+	pool := getTestPool(t)
+	defer pool.Close()
+	ctx := context.Background()
+
+	pool.Exec(ctx, `DELETE FROM licences`)
+	pool.Exec(ctx, `DELETE FROM organisations`)
+
+	// Insert in wrong order, plus one deleted org
+	idZ, _ := InsertOrganisation(ctx, pool, Organisation{Name: "Zebra Ltd", TownCity: "London", County: ""}, false)
+	idA, _ := InsertOrganisation(ctx, pool, Organisation{Name: "Acme Corp", TownCity: "Manchester", County: ""}, false)
+	idD, _ := InsertOrganisation(ctx, pool, Organisation{Name: "Deleted Inc", TownCity: "Leeds", County: ""}, false)
+	CloseOrganisation(ctx, pool, idD)
+
+	orgs, err := GetAllActiveOrganisations(ctx, pool)
+	if err != nil { t.Fatalf("unexpected error: %v", err) }
+	if len(orgs) != 2 { t.Fatalf("got %d orgs, want 2", len(orgs)) }
+	if orgs[0].ID != idA || orgs[1].ID != idZ { t.Error("orgs not sorted by name") }
+
+	pool.Exec(ctx, `DELETE FROM licences`)
+	pool.Exec(ctx, `DELETE FROM organisations`)
 }

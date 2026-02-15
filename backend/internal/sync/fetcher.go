@@ -1,8 +1,6 @@
 package sync
 
 import (
-	"fmt"
-
 	"sponsor-tracker/internal/csvfetch"
 )
 
@@ -14,9 +12,5 @@ func NewGovUKFetcher() *GovUKFetcher {
 }
 
 func (f *GovUKFetcher) FetchRecords() ([]csvfetch.Record, error) {
-	url, err := csvfetch.DiscoverCSVURL()
-	if err != nil {
-		return nil, fmt.Errorf("discover CSV URL: %w", err)
-	}
-	return csvfetch.FetchAndParse(url)
+	return csvfetch.DiscoverAndFetch()
 }

@@ -51,16 +51,17 @@ func InsertLicence(ctx context.Context, pool *pgxpool.Pool, lic Licence, initial
 	return id, nil
 }
 
-// FindActiveLicence finds a current (valid_to IS NULL) licence for an org and route
-func FindActiveLicence(ctx context.Context, pool *pgxpool.Pool, orgID int, route string) (Licence, bool, error) {
+// FindActiveLicence finds a current (valid_to IS NULL) licence for an org, licence type, and route
+func FindActiveLicence(ctx context.Context, pool *pgxpool.Pool, orgID int, licenceType, route string) (Licence, bool, error) {
 	var lic Licence
 	err := pool.QueryRow(ctx,
 		`SELECT id, organisation_id, licence_type, rating, route, valid_from, valid_to
 		 FROM licences
 		 WHERE organisation_id = $1
-		   AND route = $2
+		   AND licence_type = $2
+		   AND route = $3
 		   AND valid_to IS NULL`,
-		orgID, route,
+		orgID, licenceType, route,
 	).Scan(&lic.ID, &lic.OrganisationID, &lic.LicenceType, &lic.Rating, &lic.Route, &lic.ValidFrom, &lic.ValidTo)
 
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -84,8 +85,8 @@ func CloseLicence(ctx context.Context, pool *pgxpool.Pool, licenceID int) error 
 	return nil
 }
 
-// GetLicencesForOrg retrieves all licences (including history) for an organisation
-func GetLicencesForOrg(ctx context.Context, pool *pgxpool.Pool, orgID int) ([]Licence, error) {
+// GetAllLicencesForOrg retrieves all licences (including history) for an organisation
+func GetAllLicencesForOrg(ctx context.Context, pool *pgxpool.Pool, orgID int) ([]Licence, error) {
 	rows, err := pool.Query(ctx,
 		`SELECT id, organisation_id, licence_type, rating, route, valid_from, valid_to
 		 FROM licences
@@ -108,5 +109,30 @@ func GetLicencesForOrg(ctx context.Context, pool *pgxpool.Pool, orgID int) ([]Li
 		licences = append(licences, lic)
 	}
 
+	return licences, rows.Err()
+}
+
+// GetAllActiveLicences retrieves all licences that are currently active.
+func GetAllActiveLicences(ctx context.Context, pool *pgxpool.Pool) ([]Licence, error) {
+	rows, err := pool.Query(ctx,
+		`SELECT id, organisation_id, licence_type, rating, route, valid_from
+		 FROM licences
+		 WHERE valid_to IS NULL
+		 ORDER BY organisation_id`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get all active licences: %w", err)
+	}
+	defer rows.Close()
+
+	var licences []Licence
+	for rows.Next() {
+		var lic Licence
+		err := rows.Scan(&lic.ID, &lic.OrganisationID, &lic.LicenceType, &lic.Rating, &lic.Route, &lic.ValidFrom)
+		if err != nil {
+			return nil, fmt.Errorf("get all active licences: scan row: %w", err)
+		}
+		licences = append(licences, lic)
+	}
 	return licences, rows.Err()
 }

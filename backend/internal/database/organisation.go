@@ -49,9 +49,9 @@ func InsertOrganisation(ctx context.Context, pool *pgxpool.Pool, org Organisatio
 	return id, nil
 }
 
-// FindOrganisation looks up an organisation by name, town, and county
+// FindActiveOrganisation looks up an organisation by name, town, and county
 // Returns the organisation and true if found, or empty and false if not found
-func FindOrganisation(ctx context.Context, pool *pgxpool.Pool, name, townCity, county string) (Organisation, bool, error) {
+func FindActiveOrganisation(ctx context.Context, pool *pgxpool.Pool, name, townCity, county string) (Organisation, bool, error) {
 	var org Organisation
 	err := pool.QueryRow(ctx,
 		`SELECT id, name, town_city, county, created_at, deleted_at
@@ -86,4 +86,41 @@ func GetOrganisationByID(ctx context.Context, pool *pgxpool.Pool, id int) (Organ
 		return Organisation{}, fmt.Errorf("get organisation by id: %w", err)
 	}
 	return org, nil
+}
+
+// CloseOrganisation sets deleted_at to NOW() on an organisation (marks it as removed).
+func CloseOrganisation(ctx context.Context, pool *pgxpool.Pool, orgID int) error {
+	_, err := pool.Exec(ctx,
+		`UPDATE organisations SET deleted_at = NOW() WHERE id = $1`,
+		orgID,
+	)
+	if err != nil {
+		return fmt.Errorf("close organisation: %w", err)
+	}
+	return nil
+}
+
+// GetAllActiveOrganisations retrieves all organisations that have not been deleted.
+func GetAllActiveOrganisations(ctx context.Context, pool *pgxpool.Pool) ([]Organisation, error) {
+	rows, err := pool.Query(ctx,
+		`SELECT id, name, town_city, county, created_at
+		 FROM organisations
+		 WHERE deleted_at IS NULL
+		 ORDER BY name`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get all active organisations: %w", err)
+	}
+	defer rows.Close()
+
+	var orgs []Organisation
+	for rows.Next() {
+		var org Organisation
+		err := rows.Scan(&org.ID, &org.Name, &org.TownCity, &org.County, &org.CreatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("get all active organisations: scan row: %w", err)
+		}
+		orgs = append(orgs, org)
+	}
+	return orgs, rows.Err()
 }

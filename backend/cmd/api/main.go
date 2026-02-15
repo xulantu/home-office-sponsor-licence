@@ -30,7 +30,8 @@ func main() {
 	cfgRepo := sync.NewPostgresConfigRepository(pool)
 	syncer := sync.NewSyncer(fetcher, orgs, licences, cfgRepo)
 
-	server := api.NewServer(syncer)
+	dataReader := database.NewPostgresDataReader(pool)
+	server := api.NewServer(syncer, dataReader)
 
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)
 	slog.Info("starting server", "address", addr)

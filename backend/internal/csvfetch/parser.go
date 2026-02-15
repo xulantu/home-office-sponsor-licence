@@ -35,6 +35,15 @@ func FetchAndParse(url string) ([]Record, error) {
 	return Parse(stream)
 }
 
+// DiscoverAndFetch discovers the current CSV URL from gov.uk and returns the parsed records.
+func DiscoverAndFetch() ([]Record, error) {
+	url, err := DiscoverCSVURL()
+	if err != nil {
+		return nil, fmt.Errorf("discover CSV URL: %w", err)
+	}
+	return FetchAndParse(url)
+}
+
 // Parse reads the CSV and returns a slice of Records
 func Parse(r io.Reader) ([]Record, error) {
 	reader := csv.NewReader(r)
