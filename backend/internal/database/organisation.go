@@ -100,14 +100,34 @@ func CloseOrganisation(ctx context.Context, pool *pgxpool.Pool, orgID int) error
 	return nil
 }
 
-// GetAllActiveOrganisations retrieves all organisations that have not been deleted.
-func GetAllActiveOrganisations(ctx context.Context, pool *pgxpool.Pool) ([]Organisation, error) {
-	rows, err := pool.Query(ctx,
-		`SELECT id, name, town_city, county, created_at
+// CountAllActiveOrganisations returns the total number of active organisations.
+func CountAllActiveOrganisations(ctx context.Context, pool *pgxpool.Pool) (int, error) {
+	var count int
+	err := pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM organisations WHERE deleted_at IS NULL`,
+	).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("count active organisations: %w", err)
+	}
+	return count, nil
+}
+
+// GetAllActiveOrganisations retrieves active organisations, optionally paginated.
+// from and to are 1-based order numbers. If to == 0, all organisations are returned.
+func GetAllActiveOrganisations(ctx context.Context, pool *pgxpool.Pool, from, to int) ([]Organisation, error) {
+	query := `SELECT id, name, town_city, county, created_at
 		 FROM organisations
 		 WHERE deleted_at IS NULL
-		 ORDER BY name`,
-	)
+		 ORDER BY name`
+
+	var rows pgx.Rows
+	var err error
+	if to == 0 {
+		rows, err = pool.Query(ctx, query)
+	} else {
+		query += ` OFFSET $1 LIMIT $2`
+		rows, err = pool.Query(ctx, query, from-1, to-from+1)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("get all active organisations: %w", err)
 	}

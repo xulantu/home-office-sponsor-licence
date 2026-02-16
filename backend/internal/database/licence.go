@@ -136,3 +136,30 @@ func GetAllActiveLicences(ctx context.Context, pool *pgxpool.Pool) ([]Licence, e
 	}
 	return licences, rows.Err()
 }
+
+// GetActiveLicencesByOrgIDs retrieves active licences for the given organisation IDs.
+func GetActiveLicencesByOrgIDs(ctx context.Context, pool *pgxpool.Pool, orgIDs []int) ([]Licence, error) {
+	rows, err := pool.Query(ctx,
+		`SELECT id, organisation_id, licence_type, rating, route, valid_from
+		 FROM licences
+		 WHERE organisation_id = ANY($1)
+		   AND valid_to IS NULL
+		 ORDER BY organisation_id`,
+		orgIDs,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get active licences by org IDs: %w", err)
+	}
+	defer rows.Close()
+
+	var licences []Licence
+	for rows.Next() {
+		var lic Licence
+		err := rows.Scan(&lic.ID, &lic.OrganisationID, &lic.LicenceType, &lic.Rating, &lic.Route, &lic.ValidFrom)
+		if err != nil {
+			return nil, fmt.Errorf("get active licences by org IDs: scan row: %w", err)
+		}
+		licences = append(licences, lic)
+	}
+	return licences, rows.Err()
+}
