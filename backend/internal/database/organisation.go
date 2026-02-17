@@ -4,11 +4,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+
+// escapeLike escapes special LIKE/ILIKE characters (\, %, _) in a search term.
+func escapeLike(s string) string {
+	return likeEscaper.Replace(s)
+}
 
 // Organisation represents a sponsor organisation
 type Organisation struct {
@@ -101,33 +109,41 @@ func CloseOrganisation(ctx context.Context, pool *pgxpool.Pool, orgID int) error
 }
 
 // CountAllActiveOrganisations returns the total number of active organisations.
-func CountAllActiveOrganisations(ctx context.Context, pool *pgxpool.Pool) (int, error) {
+// If search is non-empty, only organisations matching the search term (by name or town/city) are counted.
+func CountAllActiveOrganisations(ctx context.Context, pool *pgxpool.Pool, search string) (int, error) {
+	query := `SELECT COUNT(*) FROM organisations WHERE deleted_at IS NULL`
+	args := pgx.NamedArgs{"search": "%" + escapeLike(search) + "%"}
+	if search != "" {
+		query += ` AND (name ILIKE @search OR town_city ILIKE @search)`
+	}
 	var count int
-	err := pool.QueryRow(ctx,
-		`SELECT COUNT(*) FROM organisations WHERE deleted_at IS NULL`,
-	).Scan(&count)
+	err := pool.QueryRow(ctx, query, args).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("count active organisations: %w", err)
 	}
 	return count, nil
 }
 
-// GetAllActiveOrganisations retrieves active organisations, optionally paginated.
+// GetAllActiveOrganisations retrieves active organisations, optionally paginated and filtered.
 // from and to are 1-based order numbers. If to == 0, all organisations are returned.
-func GetAllActiveOrganisations(ctx context.Context, pool *pgxpool.Pool, from, to int) ([]Organisation, error) {
+// If search is non-empty, only organisations matching by name or town/city are included.
+func GetAllActiveOrganisations(ctx context.Context, pool *pgxpool.Pool, from, to int, search string) ([]Organisation, error) {
 	query := `SELECT id, name, town_city, county, created_at
 		 FROM organisations
-		 WHERE deleted_at IS NULL
-		 ORDER BY name`
-
-	var rows pgx.Rows
-	var err error
-	if to == 0 {
-		rows, err = pool.Query(ctx, query)
-	} else {
-		query += ` OFFSET $1 LIMIT $2`
-		rows, err = pool.Query(ctx, query, from-1, to-from+1)
+		 WHERE deleted_at IS NULL`
+	args := pgx.NamedArgs{
+		"offset": from - 1,
+		"limit":  to - from + 1,
+		"search": "%" + escapeLike(search) + "%",
 	}
+	if search != "" {
+		query += ` AND (name ILIKE @search OR town_city ILIKE @search)`
+	}
+	query += ` ORDER BY name`
+	if to != 0 {
+		query += ` OFFSET @offset LIMIT @limit`
+	}
+	rows, err := pool.Query(ctx, query, args)
 	if err != nil {
 		return nil, fmt.Errorf("get all active organisations: %w", err)
 	}

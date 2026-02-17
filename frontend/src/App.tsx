@@ -41,12 +41,13 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
+  const [search, setSearch] = useState('')
 
-  async function fetchData(reqFrom: number, reqTo: number) {
+  async function fetchData(reqFrom: number, reqTo: number, reqSearch: string) {
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch(`/api/data?from=${reqFrom}&to=${reqTo}`)
+      const response = await fetch(`/api/data?from=${reqFrom}&to=${reqTo}&search=${encodeURIComponent(reqSearch)}`)
       if (!response.ok) throw new Error('Failed to fetch data')
       const json: DataResponse = await response.json()
       if (json.from === reqFrom && json.to === reqTo) {
@@ -77,7 +78,7 @@ function App() {
     const newTo = newFrom + PAGE_SIZE - 1
     setFrom(newFrom)
     setTo(newTo)
-    fetchData(newFrom, newTo)
+    fetchData(newFrom, newTo, search)
   }
 
   function handleNext() {
@@ -85,16 +86,18 @@ function App() {
     const newTo = newFrom + PAGE_SIZE - 1
     setFrom(newFrom)
     setTo(newTo)
-    fetchData(newFrom, newTo)
+    fetchData(newFrom, newTo, search)
   }
 
-  useEffect(() => { fetchData(from, to) }, [])
+  useEffect(() => { fetchData(from, to, search) }, [])
 
   if (loading) return <p>Loading...</p>
   if (error) return <p className="error">Error: {error}</p>
   if (!data) return null
 
   const total = data.total_organisations
+  const totalPages = Math.ceil(total / PAGE_SIZE)
+  const currentPage = Math.ceil(from / PAGE_SIZE)
   const atStart = from <= 1
   const atEnd = to >= total
 
@@ -105,13 +108,15 @@ function App() {
         <button onClick={handleSync} disabled={syncing}>
           {syncing ? 'Syncing...' : 'Sync Now'}
         </button>
-        <button onClick={() => fetchData(from, to)} disabled={loading}>
+        <button onClick={() => fetchData(from, to, search)} disabled={loading}>
           Refresh
         </button>
+        <input type="text" placeholder="Search by name or town..." onKeyDown={e => { if (e.key === 'Enter') { const val = (e.target as HTMLInputElement).value; setSearch(val); setFrom(1); setTo(PAGE_SIZE); fetchData(1, PAGE_SIZE, val); }}} size={30} />
       </div>
       <p>Showing {from}–{Math.min(to, total)} of {total} organisations</p>
       <div className="pagination">
         <button onClick={handlePrevious} disabled={atStart || loading}>Previous</button>
+        <span>Page <input type="text" key={currentPage} defaultValue={currentPage} onKeyDown={e => { if (e.key === 'Enter') { const page = parseInt((e.target as HTMLInputElement).value); if (!isNaN(page) && page >= 1 && page <= totalPages) { const newFrom = (page - 1) * PAGE_SIZE + 1; const newTo = newFrom + PAGE_SIZE - 1; setFrom(newFrom); setTo(newTo); fetchData(newFrom, newTo, search); }}}} size={4} /> of {totalPages}</span>
         <button onClick={handleNext} disabled={atEnd || loading}>Next</button>
       </div>
       <table>
@@ -147,6 +152,7 @@ function App() {
       </table>
       <div className="pagination">
         <button onClick={handlePrevious} disabled={atStart || loading}>Previous</button>
+        <span>Page <input type="text" key={currentPage} defaultValue={currentPage} onKeyDown={e => { if (e.key === 'Enter') { const page = parseInt((e.target as HTMLInputElement).value); if (!isNaN(page) && page >= 1 && page <= totalPages) { const newFrom = (page - 1) * PAGE_SIZE + 1; const newTo = newFrom + PAGE_SIZE - 1; setFrom(newFrom); setTo(newTo); fetchData(newFrom, newTo, search); }}}} size={4} /> of {totalPages}</span>
         <button onClick={handleNext} disabled={atEnd || loading}>Next</button>
       </div>
     </div>

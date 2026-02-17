@@ -28,18 +28,18 @@ func NewPostgresDataReader(pool *pgxpool.Pool) *PostgresDataReader {
 
 // GetAll returns a paginated view of the data. from and to are 1-based org
 // order numbers. If to == 0, all organisations and licences are returned.
-func (r *PostgresDataReader) GetAll(ctx context.Context, from, to int) (*DataResponse, error) {
+func (r *PostgresDataReader) GetAll(ctx context.Context, from, to int, search string) (*DataResponse, error) {
 	initialRunTime, _, err := GetInitialRunTime(ctx, r.pool)
 	if err != nil {
 		return nil, fmt.Errorf("get all data: %w", err)
 	}
 
-	total, err := CountAllActiveOrganisations(ctx, r.pool)
+	total, err := CountAllActiveOrganisations(ctx, r.pool, search)
 	if err != nil {
 		return nil, fmt.Errorf("get all data: %w", err)
 	}
 
-	orgs, err := GetAllActiveOrganisations(ctx, r.pool, from, to)
+	orgs, err := GetAllActiveOrganisations(ctx, r.pool, from, to, search)
 	if err != nil {
 		return nil, fmt.Errorf("get all data: %w", err)
 	}

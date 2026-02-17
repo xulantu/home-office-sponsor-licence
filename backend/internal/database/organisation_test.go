@@ -5,6 +5,24 @@ import (
 	"testing"
 )
 
+func TestEscapeLike(t *testing.T) {
+	tests := []struct {
+		input, want string
+	}{
+		{"hello", "hello"},
+		{"100%", `100\%`},
+		{"a_b", `a\_b`},
+		{`back\slash`, `back\\slash`},
+		{`%_\`, `\%\_\\`},
+	}
+	for _, tt := range tests {
+		got := escapeLike(tt.input)
+		if got != tt.want {
+			t.Errorf("escapeLike(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
 func TestInsertAndFindOrganisation(t *testing.T) {
 	pool := getTestPool(t)
 	defer pool.Close()
@@ -73,10 +91,65 @@ func TestGetAllActiveOrganisations_ReturnsSortedByName(t *testing.T) {
 	idD, _ := InsertOrganisation(ctx, pool, Organisation{Name: "Deleted Inc", TownCity: "Leeds", County: ""}, false)
 	CloseOrganisation(ctx, pool, idD)
 
-	orgs, err := GetAllActiveOrganisations(ctx, pool)
+	orgs, err := GetAllActiveOrganisations(ctx, pool, 1, 0, "")
 	if err != nil { t.Fatalf("unexpected error: %v", err) }
 	if len(orgs) != 2 { t.Fatalf("got %d orgs, want 2", len(orgs)) }
 	if orgs[0].ID != idA || orgs[1].ID != idZ { t.Error("orgs not sorted by name") }
+
+	pool.Exec(ctx, `DELETE FROM licences`)
+	pool.Exec(ctx, `DELETE FROM organisations`)
+}
+
+func TestCountAllActiveOrganisations_WithSearch(t *testing.T) {
+	pool := getTestPool(t)
+	defer pool.Close()
+	ctx := context.Background()
+
+	pool.Exec(ctx, `DELETE FROM licences`)
+	pool.Exec(ctx, `DELETE FROM organisations`)
+
+	InsertOrganisation(ctx, pool, Organisation{Name: "Acme Corp", TownCity: "London", County: ""}, false)
+	InsertOrganisation(ctx, pool, Organisation{Name: "Beta Ltd", TownCity: "Acme Town", County: ""}, false)
+	InsertOrganisation(ctx, pool, Organisation{Name: "Gamma Inc", TownCity: "Leeds", County: ""}, false)
+
+	count, err := CountAllActiveOrganisations(ctx, pool, "acme")
+	if err != nil { t.Fatalf("unexpected error: %v", err) }
+	if count != 2 { t.Errorf("got %d, want 2 (matches name and town)", count) }
+
+	count, err = CountAllActiveOrganisations(ctx, pool, "")
+	if err != nil { t.Fatalf("unexpected error: %v", err) }
+	if count != 3 { t.Errorf("got %d, want 3 (no filter)", count) }
+
+	pool.Exec(ctx, `DELETE FROM licences`)
+	pool.Exec(ctx, `DELETE FROM organisations`)
+}
+
+func TestGetAllActiveOrganisations_WithSearch(t *testing.T) {
+	pool := getTestPool(t)
+	defer pool.Close()
+	ctx := context.Background()
+
+	pool.Exec(ctx, `DELETE FROM licences`)
+	pool.Exec(ctx, `DELETE FROM organisations`)
+
+	InsertOrganisation(ctx, pool, Organisation{Name: "Acme Corp", TownCity: "London", County: ""}, false)
+	InsertOrganisation(ctx, pool, Organisation{Name: "Beta Ltd", TownCity: "Acme Town", County: ""}, false)
+	InsertOrganisation(ctx, pool, Organisation{Name: "Gamma Inc", TownCity: "Leeds", County: ""}, false)
+
+	orgs, err := GetAllActiveOrganisations(ctx, pool, 1, 20, "acme")
+	if err != nil { t.Fatalf("unexpected error: %v", err) }
+	if len(orgs) != 2 { t.Fatalf("got %d orgs, want 2", len(orgs)) }
+	if orgs[0].Name != "Acme Corp" { t.Errorf("first org = %q, want Acme Corp", orgs[0].Name) }
+	if orgs[1].Name != "Beta Ltd" { t.Errorf("second org = %q, want Beta Ltd", orgs[1].Name) }
+
+	orgs, err = GetAllActiveOrganisations(ctx, pool, 2, 2, "acme")
+	if err != nil { t.Fatalf("unexpected error: %v", err) }
+	if len(orgs) != 1 { t.Fatalf("got %d orgs, want 1", len(orgs)) }
+	if orgs[0].Name != "Beta Ltd" { t.Errorf("org = %q, want Beta Ltd", orgs[0].Name) }
+
+	orgs, err = GetAllActiveOrganisations(ctx, pool, 21, 40, "acme")
+	if err != nil { t.Fatalf("unexpected error: %v", err) }
+	if len(orgs) != 0 { t.Errorf("got %d orgs, want 0 (past end)", len(orgs)) }
 
 	pool.Exec(ctx, `DELETE FROM licences`)
 	pool.Exec(ctx, `DELETE FROM organisations`)
