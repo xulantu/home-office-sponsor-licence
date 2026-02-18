@@ -99,7 +99,7 @@ func GetAllLicencesForOrg(ctx context.Context, pool *pgxpool.Pool, orgID int) ([
 	}
 	defer rows.Close()
 
-	var licences []Licence
+	licences := []Licence{}
 	for rows.Next() {
 		var lic Licence
 		err := rows.Scan(&lic.ID, &lic.OrganisationID, &lic.LicenceType, &lic.Rating, &lic.Route, &lic.ValidFrom, &lic.ValidTo)
@@ -125,7 +125,7 @@ func GetAllActiveLicences(ctx context.Context, pool *pgxpool.Pool) ([]Licence, e
 	}
 	defer rows.Close()
 
-	var licences []Licence
+	licences := []Licence{}
 	for rows.Next() {
 		var lic Licence
 		err := rows.Scan(&lic.ID, &lic.OrganisationID, &lic.LicenceType, &lic.Rating, &lic.Route, &lic.ValidFrom)
@@ -138,8 +138,8 @@ func GetAllActiveLicences(ctx context.Context, pool *pgxpool.Pool) ([]Licence, e
 }
 
 // GetActiveLicencesByOrgIDs retrieves active licences for the given organisation IDs.
-func GetActiveLicencesByOrgIDs(ctx context.Context, pool *pgxpool.Pool, orgIDs []int) ([]Licence, error) {
-	rows, err := pool.Query(ctx,
+func GetActiveLicencesByOrgIDs(ctx context.Context, q Querier, orgIDs []int) ([]Licence, error) {
+	rows, err := q.Query(ctx,
 		`SELECT id, organisation_id, licence_type, rating, route, valid_from
 		 FROM licences
 		 WHERE organisation_id = ANY($1)
@@ -152,7 +152,7 @@ func GetActiveLicencesByOrgIDs(ctx context.Context, pool *pgxpool.Pool, orgIDs [
 	}
 	defer rows.Close()
 
-	var licences []Licence
+	licences := []Licence{}
 	for rows.Next() {
 		var lic Licence
 		err := rows.Scan(&lic.ID, &lic.OrganisationID, &lic.LicenceType, &lic.Rating, &lic.Route, &lic.ValidFrom)

@@ -22,3 +22,4 @@ Thumbs.db
 
 # AI Notes
 CLAUDE.md
+.claude/settings.local.json

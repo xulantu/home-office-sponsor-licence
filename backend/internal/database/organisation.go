@@ -110,24 +110,29 @@ func CloseOrganisation(ctx context.Context, pool *pgxpool.Pool, orgID int) error
 
 // CountAllActiveOrganisations returns the total number of active organisations.
 // If search is non-empty, only organisations matching the search term (by name or town/city) are counted.
-func CountAllActiveOrganisations(ctx context.Context, pool *pgxpool.Pool, search string) (int, error) {
+func CountAllActiveOrganisations(ctx context.Context, q Querier, search string) (int, error) {
 	query := `SELECT COUNT(*) FROM organisations WHERE deleted_at IS NULL`
 	args := pgx.NamedArgs{"search": "%" + escapeLike(search) + "%"}
 	if search != "" {
 		query += ` AND (name ILIKE @search OR town_city ILIKE @search)`
 	}
 	var count int
-	err := pool.QueryRow(ctx, query, args).Scan(&count)
+	err := q.QueryRow(ctx, query, args).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("count active organisations: %w", err)
 	}
 	return count, nil
 }
 
+// GetAllActiveOrganisationsUnfiltered retrieves all active organisations with no pagination or search.
+func GetAllActiveOrganisationsUnfiltered(ctx context.Context, pool *pgxpool.Pool) ([]Organisation, error) {
+	return GetAllActiveOrganisations(ctx, pool, 1, 0, "")
+}
+
 // GetAllActiveOrganisations retrieves active organisations, optionally paginated and filtered.
 // from and to are 1-based order numbers. If to == 0, all organisations are returned.
 // If search is non-empty, only organisations matching by name or town/city are included.
-func GetAllActiveOrganisations(ctx context.Context, pool *pgxpool.Pool, from, to int, search string) ([]Organisation, error) {
+func GetAllActiveOrganisations(ctx context.Context, q Querier, from, to int, search string) ([]Organisation, error) {
 	query := `SELECT id, name, town_city, county, created_at
 		 FROM organisations
 		 WHERE deleted_at IS NULL`
@@ -143,13 +148,13 @@ func GetAllActiveOrganisations(ctx context.Context, pool *pgxpool.Pool, from, to
 	if to != 0 {
 		query += ` OFFSET @offset LIMIT @limit`
 	}
-	rows, err := pool.Query(ctx, query, args)
+	rows, err := q.Query(ctx, query, args)
 	if err != nil {
 		return nil, fmt.Errorf("get all active organisations: %w", err)
 	}
 	defer rows.Close()
 
-	var orgs []Organisation
+	orgs := []Organisation{}
 	for rows.Next() {
 		var org Organisation
 		err := rows.Scan(&org.ID, &org.Name, &org.TownCity, &org.County, &org.CreatedAt)

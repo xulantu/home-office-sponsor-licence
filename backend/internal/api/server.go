@@ -70,6 +70,9 @@ func parseGetDataInput(r *http.Request) (int, int, string, error) {
 		return 0, 0, "", fmt.Errorf("page size must not exceed 100")
 	}
 	search := r.URL.Query().Get("search")
+	if len(search) > 200 {
+		return 0, 0, "", fmt.Errorf("search must not exceed 200 characters")
+	}
 	return from, to, search, nil
 }
 
@@ -94,5 +97,7 @@ func writeJSON(w http.ResponseWriter, data any, err error) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(data)
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		slog.Error("failed to encode response", "error", err)
+	}
 }

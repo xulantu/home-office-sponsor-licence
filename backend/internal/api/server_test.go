@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -23,6 +24,8 @@ func TestParseGetDataInput(t *testing.T) {
 		{"to less than from", "from=10&to=5", 0, 0, "", true},
 		{"from is zero", "from=0&to=20", 0, 0, "", true},
 		{"non-integer from", "from=abc&to=20", 0, 0, "", true},
+		{"search too long", "from=1&to=20&search=" + strings.Repeat("a", 201), 0, 0, "", true},
+		{"search at limit", "from=1&to=20&search=" + strings.Repeat("a", 200), 1, 20, strings.Repeat("a", 200), false},
 	}
 
 	for _, tt := range tests {

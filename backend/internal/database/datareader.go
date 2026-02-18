@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -29,28 +30,37 @@ func NewPostgresDataReader(pool *pgxpool.Pool) *PostgresDataReader {
 // GetAll returns a paginated view of the data. from and to are 1-based org
 // order numbers. If to == 0, all organisations and licences are returned.
 func (r *PostgresDataReader) GetAll(ctx context.Context, from, to int, search string) (*DataResponse, error) {
-	initialRunTime, _, err := GetInitialRunTime(ctx, r.pool)
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{
+		IsoLevel:   pgx.RepeatableRead,
+		AccessMode: pgx.ReadOnly,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get all data: begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	initialRunTime, _, err := GetInitialRunTime(ctx, tx)
 	if err != nil {
 		return nil, fmt.Errorf("get all data: %w", err)
 	}
 
-	total, err := CountAllActiveOrganisations(ctx, r.pool, search)
+	total, err := CountAllActiveOrganisations(ctx, tx, search)
 	if err != nil {
 		return nil, fmt.Errorf("get all data: %w", err)
 	}
 
-	orgs, err := GetAllActiveOrganisations(ctx, r.pool, from, to, search)
+	orgs, err := GetAllActiveOrganisations(ctx, tx, from, to, search)
 	if err != nil {
 		return nil, fmt.Errorf("get all data: %w", err)
 	}
 
-	var licences []Licence
+	licences := []Licence{}
 	if len(orgs) > 0 {
 		orgIDs := make([]int, len(orgs))
 		for i, org := range orgs {
 			orgIDs[i] = org.ID
 		}
-		licences, err = GetActiveLicencesByOrgIDs(ctx, r.pool, orgIDs)
+		licences, err = GetActiveLicencesByOrgIDs(ctx, tx, orgIDs)
 		if err != nil {
 			return nil, fmt.Errorf("get all data: %w", err)
 		}

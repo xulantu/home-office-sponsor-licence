@@ -11,9 +11,9 @@ import (
 
 // GetConfigValue retrieves a value from the config table by name and key.
 // Returns the value and true if found, or empty string and false if not.
-func GetConfigValue(ctx context.Context, pool *pgxpool.Pool, name, key string) (string, bool, error) {
+func GetConfigValue(ctx context.Context, q Querier, name, key string) (string, bool, error) {
 	var value string
-	err := pool.QueryRow(ctx,
+	err := q.QueryRow(ctx,
 		`SELECT value FROM config WHERE name = $1 AND key = $2`,
 		name, key,
 	).Scan(&value)
@@ -29,8 +29,8 @@ func GetConfigValue(ctx context.Context, pool *pgxpool.Pool, name, key string) (
 
 // GetInitialRunTime checks whether the initial sync has been performed.
 // Returns the timestamp and true if it has, or empty string and false if it hasn't.
-func GetInitialRunTime(ctx context.Context, pool *pgxpool.Pool) (string, bool, error) {
-	value, found, err := GetConfigValue(ctx, pool, "InitialRunDateTime", "Default")
+func GetInitialRunTime(ctx context.Context, q Querier) (string, bool, error) {
+	value, found, err := GetConfigValue(ctx, q, "InitialRunDateTime", "Default")
 	if err != nil {
 		return "", false, fmt.Errorf("get initial run time: %w", err)
 	}

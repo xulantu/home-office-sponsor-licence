@@ -29,7 +29,7 @@ func (r *PostgresOrgRepository) Close(ctx context.Context, orgID int) error {
 }
 
 func (r *PostgresOrgRepository) GetAllActive(ctx context.Context) ([]database.Organisation, error) {
-	return database.GetAllActiveOrganisations(ctx, r.pool, 1, 0, "")
+	return database.GetAllActiveOrganisationsUnfiltered(ctx, r.pool)
 }
 
 // PostgresLicenceRepository implements LicenceRepository using PostgreSQL.
