@@ -33,6 +33,25 @@ func InsertUser(ctx context.Context, q Querier, u User) (int, error) {
 	return id, nil
 }
 
+// FindUserByID looks up a user by their ID.
+// Returns the user and true if found, or empty and false if not found.
+func FindUserByID(ctx context.Context, q Querier, id int) (User, bool, error) {
+	var u User
+	err := q.QueryRow(ctx,
+		`SELECT id, username, password_hash, role, created_at
+		 FROM users
+		 WHERE id = $1`,
+		id,
+	).Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return User{}, false, nil
+	}
+	if err != nil {
+		return User{}, false, fmt.Errorf("find user by id: %w", err)
+	}
+	return u, true, nil
+}
+
 // FindUserByUsername looks up an active user by username.
 // Returns the user and true if found, or empty and false if not found.
 func FindUserByUsername(ctx context.Context, q Querier, username string) (User, bool, error) {

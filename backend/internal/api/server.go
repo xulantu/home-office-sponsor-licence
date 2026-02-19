@@ -17,22 +17,33 @@ type DataReader interface {
 	GetAll(ctx context.Context, from, to int, search string) (*database.DataResponse, error)
 }
 
+// Authenticator handles login, logout, and session validation.
+type Authenticator interface {
+	Login(ctx context.Context, username, password string) (string, error)
+	Logout(ctx context.Context, token string) error
+	Authenticate(ctx context.Context, token string) (database.User, error)
+}
+
 // Server is the HTTP server handling API requests.
 type Server struct {
 	syncer *sync.Syncer
 	data   DataReader
+	auth   Authenticator
 }
 
 // NewServer creates a Server with the given dependencies.
-func NewServer(syncer *sync.Syncer, data DataReader) *Server {
-	return &Server{syncer: syncer, data: data}
+func NewServer(syncer *sync.Syncer, data DataReader, auth Authenticator) *Server {
+	return &Server{syncer: syncer, data: data, auth: auth}
 }
 
 // Routes registers all HTTP handlers and returns the root handler.
 func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /api/sync", s.handleSync)
+	mux.HandleFunc("POST /api/sync", s.requireRole(10, s.handleSync))
 	mux.HandleFunc("GET /api/data", s.handleGetData)
+	mux.HandleFunc("POST /api/auth/login", s.handleLogin)
+	mux.HandleFunc("POST /api/auth/logout", s.handleLogout)
+	mux.HandleFunc("GET /api/auth/me", s.handleMe)
 	return mux
 }
 

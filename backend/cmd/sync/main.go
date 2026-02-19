@@ -1,13 +1,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
-	"log/slog"
-	"net/http"
 
-	"sponsor-tracker/internal/api"
-	"sponsor-tracker/internal/auth"
 	"sponsor-tracker/internal/config"
 	"sponsor-tracker/internal/database"
 	"sponsor-tracker/internal/sync"
@@ -31,15 +28,20 @@ func main() {
 	cfgRepo := sync.NewPostgresConfigRepository(pool)
 	syncer := sync.NewSyncer(fetcher, orgs, licences, cfgRepo)
 
-	dataReader := database.NewPostgresDataReader(pool)
-	userStore := auth.NewPostgresUserStore(pool)
-	sessionStore := auth.NewPostgresSessionStore(pool)
-	authService := auth.NewService(userStore, sessionStore)
-	server := api.NewServer(syncer, dataReader, authService)
+	result, err := syncer.Run(context.Background())
+	if err != nil {
+		log.Fatalf("sync failed: %v", err)
+	}
 
-	addr := fmt.Sprintf(":%d", cfg.Server.Port)
-	slog.Info("starting server", "address", addr)
-	if err := http.ListenAndServe(addr, server.Routes()); err != nil {
-		log.Fatalf("server failed: %v", err)
+	fmt.Printf("Sync complete:\n")
+	fmt.Printf("  New organisations:    %d\n", result.NewOrganisations)
+	fmt.Printf("  New licences:         %d\n", result.NewLicences)
+	fmt.Printf("  Changed licences:     %d\n", result.ChangedLicences)
+	fmt.Printf("  Closed organisations: %d\n", result.ClosedOrganisations)
+	fmt.Printf("  Closed licences:      %d\n", result.ClosedLicences)
+	fmt.Printf("  Errors:               %d\n", len(result.Errors))
+
+	for i, e := range result.Errors {
+		fmt.Printf("  error %d: %v\n", i+1, e)
 	}
 }
