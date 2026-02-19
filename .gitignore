@@ -20,6 +20,9 @@ Thumbs.db
 .env
 .env.local
 
+# Research data
+data/
+
 # AI Notes
 CLAUDE.md
 .claude/settings.local.json
