@@ -26,9 +26,10 @@ func TestIntegration_OrgMovesAndReturns(t *testing.T) {
 	orgs := NewPostgresOrgRepository(pool)
 	licences := NewPostgresLicenceRepository(pool)
 	cfg := NewPostgresConfigRepository(pool)
+	runs := NewPostgresSyncRunRepository(pool)
 
 	fetcher := &switchableFetcher{}
-	s := NewSyncer(fetcher, orgs, licences, cfg)
+	s := NewSyncer(fetcher, orgs, licences, cfg, runs)
 
 	// Day 1: initial run — StaffCo in Leeds
 	fetcher.records = []csvfetch.Record{

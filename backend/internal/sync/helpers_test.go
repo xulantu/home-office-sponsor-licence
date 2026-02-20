@@ -38,7 +38,7 @@ func truncateAll(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 
 	_, err := pool.Exec(context.Background(),
-		"TRUNCATE licences, organisations, config RESTART IDENTITY CASCADE")
+		"TRUNCATE licences, organisations, config, sync_runs RESTART IDENTITY CASCADE")
 	if err != nil {
 		t.Fatalf("Failed to truncate tables: %v", err)
 	}

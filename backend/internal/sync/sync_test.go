@@ -84,6 +84,24 @@ func (m *mockConfigRepo) GetInitialRunTime(ctx context.Context) (string, bool, e
 	return m.getInitialRunTimeFn(ctx)
 }
 
+// mockSyncRunRepo implements SyncRunRepository for testing.
+type mockSyncRunRepo struct {
+	insertFn func(ctx context.Context, run database.SyncRun) (int, error)
+}
+
+func (m *mockSyncRunRepo) Insert(ctx context.Context, run database.SyncRun) (int, error) {
+	return m.insertFn(ctx, run)
+}
+
+// noOpSyncRunRepo returns a mock that silently accepts inserts.
+func noOpSyncRunRepo() *mockSyncRunRepo {
+	return &mockSyncRunRepo{
+		insertFn: func(_ context.Context, _ database.SyncRun) (int, error) {
+			return 1, nil
+		},
+	}
+}
+
 func TestProcessOrg_ExistingOrg_ReturnsIDAndFalse(t *testing.T) {
 	orgs := &mockOrgRepo{
 		findFn: func(_ context.Context, name, townCity, county string) (database.Organisation, bool, error) {
@@ -92,7 +110,7 @@ func TestProcessOrg_ExistingOrg_ReturnsIDAndFalse(t *testing.T) {
 		},
 	}
 
-	s := NewSyncer(nil, orgs, nil, nil)
+	s := NewSyncer(nil, orgs, nil, nil, nil)
 	rec := csvfetch.Record{OrganisationName: "Acme Ltd", TownCity: "London", County: "Greater London"}
 
 	id, isNew, err := s.processOrg(context.Background(), rec, false)
@@ -113,7 +131,7 @@ func TestProcessOrg_NewOrg_InsertsAndReturnsID(t *testing.T) {
 		},
 	}
 
-	s := NewSyncer(nil, orgs, nil, nil)
+	s := NewSyncer(nil, orgs, nil, nil, nil)
 	rec := csvfetch.Record{OrganisationName: "New Corp", TownCity: "Manchester", County: "Greater Manchester"}
 
 	id, isNew, err := s.processOrg(context.Background(), rec, false)
@@ -134,7 +152,7 @@ func TestProcessLicence_NewLicence_ReturnsLicenceNew(t *testing.T) {
 		},
 	}
 
-	s := NewSyncer(nil, nil, licences, nil)
+	s := NewSyncer(nil, nil, licences, nil, nil)
 	rec := csvfetch.Record{LicenceType: "Worker", Rating: "A rating", Route: "Skilled Worker"}
 
 	id, result, err := s.processLicence(context.Background(), 42, rec, false)
@@ -151,7 +169,7 @@ func TestProcessLicence_Unchanged_ReturnsLicenceUnchanged(t *testing.T) {
 		},
 	}
 
-	s := NewSyncer(nil, nil, licences, nil)
+	s := NewSyncer(nil, nil, licences, nil, nil)
 	rec := csvfetch.Record{LicenceType: "Worker", Rating: "A rating", Route: "Skilled Worker"}
 
 	id, result, err := s.processLicence(context.Background(), 42, rec, false)
@@ -179,7 +197,7 @@ func TestProcessLicence_ChangedRating_ClosesAndInserts(t *testing.T) {
 		},
 	}
 
-	s := NewSyncer(nil, nil, licences, nil)
+	s := NewSyncer(nil, nil, licences, nil, nil)
 	rec := csvfetch.Record{LicenceType: "Worker", Rating: "B rating", Route: "Skilled Worker"}
 
 	id, result, err := s.processLicence(context.Background(), 42, rec, false)
@@ -241,7 +259,7 @@ func TestRun_SubsequentRun_ClosesStaleRecords(t *testing.T) {
 		},
 	}
 
-	s := NewSyncer(fetcher, orgs, licences, cfg)
+	s := NewSyncer(fetcher, orgs, licences, cfg, noOpSyncRunRepo())
 	result, err := s.Run(context.Background())
 	if err != nil { t.Fatalf("unexpected error: %v", err) }
 
@@ -302,7 +320,7 @@ func TestRun_InitialRun_SkipsStaleDetectionAndSetsConfig(t *testing.T) {
 		},
 	}
 
-	s := NewSyncer(fetcher, orgs, licences, cfg)
+	s := NewSyncer(fetcher, orgs, licences, cfg, noOpSyncRunRepo())
 	result, err := s.Run(context.Background())
 	if err != nil { t.Fatalf("unexpected error: %v", err) }
 

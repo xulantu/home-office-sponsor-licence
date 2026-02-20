@@ -26,7 +26,8 @@ func main() {
 	orgs := sync.NewPostgresOrgRepository(pool)
 	licences := sync.NewPostgresLicenceRepository(pool)
 	cfgRepo := sync.NewPostgresConfigRepository(pool)
-	syncer := sync.NewSyncer(fetcher, orgs, licences, cfgRepo)
+	runs := sync.NewPostgresSyncRunRepository(pool)
+	syncer := sync.NewSyncer(fetcher, orgs, licences, cfgRepo, runs)
 
 	result, err := syncer.Run(context.Background())
 	if err != nil {

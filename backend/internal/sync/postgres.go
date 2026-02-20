@@ -78,3 +78,16 @@ func (r *PostgresConfigRepository) GetInitialRunTime(ctx context.Context) (strin
 	return database.GetInitialRunTime(ctx, r.pool)
 }
 
+// PostgresSyncRunRepository implements SyncRunRepository using PostgreSQL.
+type PostgresSyncRunRepository struct {
+	pool *pgxpool.Pool
+}
+
+func NewPostgresSyncRunRepository(pool *pgxpool.Pool) *PostgresSyncRunRepository {
+	return &PostgresSyncRunRepository{pool: pool}
+}
+
+func (r *PostgresSyncRunRepository) Insert(ctx context.Context, run database.SyncRun) (int, error) {
+	return database.InsertSyncRun(ctx, r.pool, run)
+}
+

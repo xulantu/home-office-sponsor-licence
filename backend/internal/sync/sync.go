@@ -57,27 +57,35 @@ type ConfigRepository interface {
 	GetInitialRunTime(ctx context.Context) (string, bool, error)
 }
 
+// SyncRunRepository records completed sync runs.
+type SyncRunRepository interface {
+	Insert(ctx context.Context, run database.SyncRun) (int, error)
+}
+
 // Syncer synchronises the database with gov.uk data
 type Syncer struct {
 	fetcher  CSVFetcher
 	orgs     OrgRepository
 	licences LicenceRepository
 	config   ConfigRepository
+	runs     SyncRunRepository
 }
 
 // NewSyncer creates a Syncer with the given dependencies.
-func NewSyncer(fetcher CSVFetcher, orgs OrgRepository, licences LicenceRepository, config ConfigRepository) *Syncer {
+func NewSyncer(fetcher CSVFetcher, orgs OrgRepository, licences LicenceRepository, config ConfigRepository, runs SyncRunRepository) *Syncer {
 	return &Syncer{
 		fetcher:  fetcher,
 		orgs:     orgs,
 		licences: licences,
 		config:   config,
+		runs:     runs,
 	}
 }
 
 // Run syncs the database with the current gov.uk CSV.
 // It checks the config table to determine if this is the initial run.
 func (s *Syncer) Run(ctx context.Context) (*Result, error) {
+	startTime := time.Now().UTC()
 	result := &Result{}
 
 	_, initialRunTimeHasValue, err := s.config.GetInitialRunTime(ctx)
@@ -124,6 +132,20 @@ func (s *Syncer) Run(ctx context.Context) (*Result, error) {
 		"closed_licences", result.ClosedLicences,
 		"errors", len(result.Errors),
 	)
+
+	run := database.SyncRun{
+		StartTime:           startTime,
+		EndTime:             time.Now().UTC(),
+		NewOrganisations:    result.NewOrganisations,
+		NewLicences:         result.NewLicences,
+		ChangedLicences:     result.ChangedLicences,
+		ClosedOrganisations: result.ClosedOrganisations,
+		ClosedLicences:      result.ClosedLicences,
+		ErrorCount:          len(result.Errors),
+	}
+	if _, err := s.runs.Insert(ctx, run); err != nil {
+		return result, fmt.Errorf("record sync run: %w", err)
+	}
 
 	return result, nil
 }

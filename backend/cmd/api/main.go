@@ -29,7 +29,8 @@ func main() {
 	orgs := sync.NewPostgresOrgRepository(pool)
 	licences := sync.NewPostgresLicenceRepository(pool)
 	cfgRepo := sync.NewPostgresConfigRepository(pool)
-	syncer := sync.NewSyncer(fetcher, orgs, licences, cfgRepo)
+	runs := sync.NewPostgresSyncRunRepository(pool)
+	syncer := sync.NewSyncer(fetcher, orgs, licences, cfgRepo, runs)
 
 	dataReader := database.NewPostgresDataReader(pool)
 	userStore := auth.NewPostgresUserStore(pool)
