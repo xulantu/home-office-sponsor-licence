@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
@@ -31,19 +30,19 @@ type Organisation struct {
 // InsertOrganisation adds a new organisation and returns its ID.
 // If initialRun is true, created_at is set to NULL (existed before tracking).
 // If initialRun is false, created_at uses the database default (NOW()).
-func InsertOrganisation(ctx context.Context, pool *pgxpool.Pool, org Organisation, initialRun bool) (int, error) {
+func InsertOrganisation(ctx context.Context, q Querier, org Organisation, initialRun bool) (int, error) {
 	var id int
 	var err error
 
 	if initialRun {
-		err = pool.QueryRow(ctx,
+		err = q.QueryRow(ctx,
 			`INSERT INTO organisations (name, town_city, county, created_at)
 			 VALUES ($1, $2, $3, NULL)
 			 RETURNING id`,
 			org.Name, org.TownCity, org.County,
 		).Scan(&id)
 	} else {
-		err = pool.QueryRow(ctx,
+		err = q.QueryRow(ctx,
 			`INSERT INTO organisations (name, town_city, county)
 			 VALUES ($1, $2, $3)
 			 RETURNING id`,
@@ -59,9 +58,9 @@ func InsertOrganisation(ctx context.Context, pool *pgxpool.Pool, org Organisatio
 
 // FindActiveOrganisation looks up an organisation by name, town, and county
 // Returns the organisation and true if found, or empty and false if not found
-func FindActiveOrganisation(ctx context.Context, pool *pgxpool.Pool, name, townCity, county string) (Organisation, bool, error) {
+func FindActiveOrganisation(ctx context.Context, q Querier, name, townCity, county string) (Organisation, bool, error) {
 	var org Organisation
-	err := pool.QueryRow(ctx,
+	err := q.QueryRow(ctx,
 		`SELECT id, name, town_city, county, created_at, deleted_at
 		 FROM organisations
 		 WHERE name = $1
@@ -81,9 +80,9 @@ func FindActiveOrganisation(ctx context.Context, pool *pgxpool.Pool, name, townC
 }
 
 // GetOrganisationByID retrieves an organisation by its ID
-func GetOrganisationByID(ctx context.Context, pool *pgxpool.Pool, id int) (Organisation, error) {
+func GetOrganisationByID(ctx context.Context, q Querier, id int) (Organisation, error) {
 	var org Organisation
-	err := pool.QueryRow(ctx,
+	err := q.QueryRow(ctx,
 		`SELECT id, name, town_city, county, created_at, deleted_at
 		 FROM organisations
 		 WHERE id = $1`,
@@ -97,8 +96,8 @@ func GetOrganisationByID(ctx context.Context, pool *pgxpool.Pool, id int) (Organ
 }
 
 // CloseOrganisation sets deleted_at to NOW() on an organisation (marks it as removed).
-func CloseOrganisation(ctx context.Context, pool *pgxpool.Pool, orgID int) error {
-	_, err := pool.Exec(ctx,
+func CloseOrganisation(ctx context.Context, q Querier, orgID int) error {
+	_, err := q.Exec(ctx,
 		`UPDATE organisations SET deleted_at = NOW() WHERE id = $1`,
 		orgID,
 	)
@@ -125,8 +124,8 @@ func CountAllActiveOrganisations(ctx context.Context, q Querier, search string) 
 }
 
 // GetAllActiveOrganisationsUnfiltered retrieves all active organisations with no pagination or search.
-func GetAllActiveOrganisationsUnfiltered(ctx context.Context, pool *pgxpool.Pool) ([]Organisation, error) {
-	return GetAllActiveOrganisations(ctx, pool, 1, 0, "")
+func GetAllActiveOrganisationsUnfiltered(ctx context.Context, q Querier) ([]Organisation, error) {
+	return GetAllActiveOrganisations(ctx, q, 1, 0, "")
 }
 
 // GetAllActiveOrganisations retrieves active organisations, optionally paginated and filtered.

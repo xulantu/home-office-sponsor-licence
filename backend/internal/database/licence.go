@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Licence represents a sponsor licence record
@@ -25,19 +24,19 @@ type Licence struct {
 // If initialRun is true, valid_from is NULL (existed before tracking).
 // If initialRun is false, valid_from uses the database default (NOW()).
 // valid_to is always NULL (licence is active when inserted).
-func InsertLicence(ctx context.Context, pool *pgxpool.Pool, lic Licence, initialRun bool) (int, error) {
+func InsertLicence(ctx context.Context, q Querier, lic Licence, initialRun bool) (int, error) {
 	var id int
 	var err error
 
 	if initialRun {
-		err = pool.QueryRow(ctx,
+		err = q.QueryRow(ctx,
 			`INSERT INTO licences (organisation_id, licence_type, rating, route, valid_from)
 			 VALUES ($1, $2, $3, $4, NULL)
 			 RETURNING id`,
 			lic.OrganisationID, lic.LicenceType, lic.Rating, lic.Route,
 		).Scan(&id)
 	} else {
-		err = pool.QueryRow(ctx,
+		err = q.QueryRow(ctx,
 			`INSERT INTO licences (organisation_id, licence_type, rating, route)
 			 VALUES ($1, $2, $3, $4)
 			 RETURNING id`,
@@ -52,9 +51,9 @@ func InsertLicence(ctx context.Context, pool *pgxpool.Pool, lic Licence, initial
 }
 
 // FindActiveLicence finds a current (valid_to IS NULL) licence for an org, licence type, and route
-func FindActiveLicence(ctx context.Context, pool *pgxpool.Pool, orgID int, licenceType, route string) (Licence, bool, error) {
+func FindActiveLicence(ctx context.Context, q Querier, orgID int, licenceType, route string) (Licence, bool, error) {
 	var lic Licence
-	err := pool.QueryRow(ctx,
+	err := q.QueryRow(ctx,
 		`SELECT id, organisation_id, licence_type, rating, route, valid_from, valid_to
 		 FROM licences
 		 WHERE organisation_id = $1
@@ -74,8 +73,8 @@ func FindActiveLicence(ctx context.Context, pool *pgxpool.Pool, orgID int, licen
 }
 
 // CloseLicence sets valid_to to NOW() on a licence (marks it as ended)
-func CloseLicence(ctx context.Context, pool *pgxpool.Pool, licenceID int) error {
-	_, err := pool.Exec(ctx,
+func CloseLicence(ctx context.Context, q Querier, licenceID int) error {
+	_, err := q.Exec(ctx,
 		`UPDATE licences SET valid_to = NOW() WHERE id = $1`,
 		licenceID,
 	)
@@ -86,8 +85,8 @@ func CloseLicence(ctx context.Context, pool *pgxpool.Pool, licenceID int) error 
 }
 
 // GetAllLicencesForOrg retrieves all licences (including history) for an organisation
-func GetAllLicencesForOrg(ctx context.Context, pool *pgxpool.Pool, orgID int) ([]Licence, error) {
-	rows, err := pool.Query(ctx,
+func GetAllLicencesForOrg(ctx context.Context, q Querier, orgID int) ([]Licence, error) {
+	rows, err := q.Query(ctx,
 		`SELECT id, organisation_id, licence_type, rating, route, valid_from, valid_to
 		 FROM licences
 		 WHERE organisation_id = $1
@@ -113,8 +112,8 @@ func GetAllLicencesForOrg(ctx context.Context, pool *pgxpool.Pool, orgID int) ([
 }
 
 // GetAllActiveLicences retrieves all licences that are currently active.
-func GetAllActiveLicences(ctx context.Context, pool *pgxpool.Pool) ([]Licence, error) {
-	rows, err := pool.Query(ctx,
+func GetAllActiveLicences(ctx context.Context, q Querier) ([]Licence, error) {
+	rows, err := q.Query(ctx,
 		`SELECT id, organisation_id, licence_type, rating, route, valid_from
 		 FROM licences
 		 WHERE valid_to IS NULL

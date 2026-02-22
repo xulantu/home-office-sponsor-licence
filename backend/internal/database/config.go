@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // GetConfigValue retrieves a value from the config table by name and key.
@@ -41,8 +40,8 @@ func GetInitialRunTime(ctx context.Context, q Querier) (string, bool, error) {
 }
 
 // SetConfigValue inserts or updates a value in the config table.
-func SetConfigValue(ctx context.Context, pool *pgxpool.Pool, name, key, value string) error {
-	_, err := pool.Exec(ctx,
+func SetConfigValue(ctx context.Context, q Querier, name, key, value string) error {
+	_, err := q.Exec(ctx,
 		`INSERT INTO config (name, key, value) VALUES ($1, $2, $3)
 		 ON CONFLICT (name, key) DO UPDATE SET value = $3`,
 		name, key, value,

@@ -39,7 +39,7 @@ func (f *fakeData) GetAll(_ context.Context, _, _ int, _ string) (*database.Data
 }
 
 func newTestServer(a *fakeAuth) *Server {
-	return NewServer(nil, &fakeData{}, a)
+	return NewServer(nil, &fakeData{}, a, false)
 }
 
 func TestHandleLogin(t *testing.T) {

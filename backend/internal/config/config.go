@@ -19,7 +19,8 @@ type DatabaseConfig struct {
 
 // ServerConfig holds HTTP server settings
 type ServerConfig struct {
-	Port int `yaml:"port"`
+	Port          int  `yaml:"port"`
+	SecureCookies bool `yaml:"secure_cookies"`
 }
 
 // Config holds all application configuration

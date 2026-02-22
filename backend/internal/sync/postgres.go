@@ -3,91 +3,80 @@ package sync
 import (
 	"context"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"sponsor-tracker/internal/database"
 )
 
-// PostgresOrgRepository implements OrgRepository using PostgreSQL.
-type PostgresOrgRepository struct {
+// PostgresDB implements DB using a pgxpool connection pool.
+type PostgresDB struct {
 	pool *pgxpool.Pool
 }
 
-func NewPostgresOrgRepository(pool *pgxpool.Pool) *PostgresOrgRepository {
-	return &PostgresOrgRepository{pool: pool}
+func NewPostgresDB(pool *pgxpool.Pool) *PostgresDB {
+	return &PostgresDB{pool: pool}
 }
 
-func (r *PostgresOrgRepository) Find(ctx context.Context, name, townCity, county string) (database.Organisation, bool, error) {
-	return database.FindActiveOrganisation(ctx, r.pool, name, townCity, county)
+func (db *PostgresDB) Begin(ctx context.Context) (Transaction, error) {
+	return db.pool.BeginTx(ctx, pgx.TxOptions{})
 }
 
-func (r *PostgresOrgRepository) Insert(ctx context.Context, org database.Organisation, initialRun bool) (int, error) {
-	return database.InsertOrganisation(ctx, r.pool, org, initialRun)
+// txOrgRepo implements OrgRepository within a transaction.
+type txOrgRepo struct{ q database.Querier }
+
+func newTxOrgRepo(q database.Querier) *txOrgRepo { return &txOrgRepo{q: q} }
+
+func (r *txOrgRepo) Find(ctx context.Context, name, townCity, county string) (database.Organisation, bool, error) {
+	return database.FindActiveOrganisation(ctx, r.q, name, townCity, county)
+}
+func (r *txOrgRepo) Insert(ctx context.Context, org database.Organisation, initialRun bool) (int, error) {
+	return database.InsertOrganisation(ctx, r.q, org, initialRun)
+}
+func (r *txOrgRepo) Close(ctx context.Context, orgID int) error {
+	return database.CloseOrganisation(ctx, r.q, orgID)
+}
+func (r *txOrgRepo) GetAllActive(ctx context.Context) ([]database.Organisation, error) {
+	return database.GetAllActiveOrganisationsUnfiltered(ctx, r.q)
 }
 
-func (r *PostgresOrgRepository) Close(ctx context.Context, orgID int) error {
-	return database.CloseOrganisation(ctx, r.pool, orgID)
+// txLicenceRepo implements LicenceRepository within a transaction.
+type txLicenceRepo struct{ q database.Querier }
+
+func newTxLicenceRepo(q database.Querier) *txLicenceRepo { return &txLicenceRepo{q: q} }
+
+func (r *txLicenceRepo) FindActive(ctx context.Context, orgID int, licenceType, route string) (database.Licence, bool, error) {
+	return database.FindActiveLicence(ctx, r.q, orgID, licenceType, route)
+}
+func (r *txLicenceRepo) Insert(ctx context.Context, lic database.Licence, initialRun bool) (int, error) {
+	return database.InsertLicence(ctx, r.q, lic, initialRun)
+}
+func (r *txLicenceRepo) Close(ctx context.Context, licenceID int) error {
+	return database.CloseLicence(ctx, r.q, licenceID)
+}
+func (r *txLicenceRepo) GetAllActive(ctx context.Context) ([]database.Licence, error) {
+	return database.GetAllActiveLicences(ctx, r.q)
 }
 
-func (r *PostgresOrgRepository) GetAllActive(ctx context.Context) ([]database.Organisation, error) {
-	return database.GetAllActiveOrganisationsUnfiltered(ctx, r.pool)
+// txConfigRepo implements ConfigRepository within a transaction.
+type txConfigRepo struct{ q database.Querier }
+
+func newTxConfigRepo(q database.Querier) *txConfigRepo { return &txConfigRepo{q: q} }
+
+func (r *txConfigRepo) GetValue(ctx context.Context, name, key string) (string, bool, error) {
+	return database.GetConfigValue(ctx, r.q, name, key)
+}
+func (r *txConfigRepo) SetValue(ctx context.Context, name, key, value string) error {
+	return database.SetConfigValue(ctx, r.q, name, key, value)
+}
+func (r *txConfigRepo) GetInitialRunTime(ctx context.Context) (string, bool, error) {
+	return database.GetInitialRunTime(ctx, r.q)
 }
 
-// PostgresLicenceRepository implements LicenceRepository using PostgreSQL.
-type PostgresLicenceRepository struct {
-	pool *pgxpool.Pool
-}
+// txSyncRunRepo implements SyncRunRepository within a transaction.
+type txSyncRunRepo struct{ q database.Querier }
 
-func NewPostgresLicenceRepository(pool *pgxpool.Pool) *PostgresLicenceRepository {
-	return &PostgresLicenceRepository{pool: pool}
-}
+func newTxSyncRunRepo(q database.Querier) *txSyncRunRepo { return &txSyncRunRepo{q: q} }
 
-func (r *PostgresLicenceRepository) FindActive(ctx context.Context, orgID int, licenceType, route string) (database.Licence, bool, error) {
-	return database.FindActiveLicence(ctx, r.pool, orgID, licenceType, route)
+func (r *txSyncRunRepo) Insert(ctx context.Context, run database.SyncRun) (int, error) {
+	return database.InsertSyncRun(ctx, r.q, run)
 }
-
-func (r *PostgresLicenceRepository) Insert(ctx context.Context, lic database.Licence, initialRun bool) (int, error) {
-	return database.InsertLicence(ctx, r.pool, lic, initialRun)
-}
-
-func (r *PostgresLicenceRepository) Close(ctx context.Context, licenceID int) error {
-	return database.CloseLicence(ctx, r.pool, licenceID)
-}
-
-func (r *PostgresLicenceRepository) GetAllActive(ctx context.Context) ([]database.Licence, error) {
-	return database.GetAllActiveLicences(ctx, r.pool)
-}
-
-// PostgresConfigRepository implements ConfigRepository using PostgreSQL.
-type PostgresConfigRepository struct {
-	pool *pgxpool.Pool
-}
-
-func NewPostgresConfigRepository(pool *pgxpool.Pool) *PostgresConfigRepository {
-	return &PostgresConfigRepository{pool: pool}
-}
-
-func (r *PostgresConfigRepository) GetValue(ctx context.Context, name, key string) (string, bool, error) {
-	return database.GetConfigValue(ctx, r.pool, name, key)
-}
-
-func (r *PostgresConfigRepository) SetValue(ctx context.Context, name, key, value string) error {
-	return database.SetConfigValue(ctx, r.pool, name, key, value)
-}
-
-func (r *PostgresConfigRepository) GetInitialRunTime(ctx context.Context) (string, bool, error) {
-	return database.GetInitialRunTime(ctx, r.pool)
-}
-
-// PostgresSyncRunRepository implements SyncRunRepository using PostgreSQL.
-type PostgresSyncRunRepository struct {
-	pool *pgxpool.Pool
-}
-
-func NewPostgresSyncRunRepository(pool *pgxpool.Pool) *PostgresSyncRunRepository {
-	return &PostgresSyncRunRepository{pool: pool}
-}
-
-func (r *PostgresSyncRunRepository) Insert(ctx context.Context, run database.SyncRun) (int, error) {
-	return database.InsertSyncRun(ctx, r.pool, run)
-}
-

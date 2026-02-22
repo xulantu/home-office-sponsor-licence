@@ -12,6 +12,11 @@ import (
 	"sponsor-tracker/internal/sync"
 )
 
+// Syncer runs a data synchronisation against the gov.uk CSV.
+type Syncer interface {
+	Run(ctx context.Context) (*sync.Result, error)
+}
+
 // DataReader provides read-only access to the current application state.
 type DataReader interface {
 	GetAll(ctx context.Context, from, to int, search string) (*database.DataResponse, error)
@@ -26,14 +31,15 @@ type Authenticator interface {
 
 // Server is the HTTP server handling API requests.
 type Server struct {
-	syncer *sync.Syncer
-	data   DataReader
-	auth   Authenticator
+	syncer        Syncer
+	data          DataReader
+	auth          Authenticator
+	secureCookies bool
 }
 
 // NewServer creates a Server with the given dependencies.
-func NewServer(syncer *sync.Syncer, data DataReader, auth Authenticator) *Server {
-	return &Server{syncer: syncer, data: data, auth: auth}
+func NewServer(syncer Syncer, data DataReader, auth Authenticator, secureCookies bool) *Server {
+	return &Server{syncer: syncer, data: data, auth: auth, secureCookies: secureCookies}
 }
 
 // Routes registers all HTTP handlers and returns the root handler.

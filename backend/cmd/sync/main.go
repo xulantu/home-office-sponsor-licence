@@ -23,11 +23,8 @@ func main() {
 	defer pool.Close()
 
 	fetcher := sync.NewGovUKFetcher()
-	orgs := sync.NewPostgresOrgRepository(pool)
-	licences := sync.NewPostgresLicenceRepository(pool)
-	cfgRepo := sync.NewPostgresConfigRepository(pool)
-	runs := sync.NewPostgresSyncRunRepository(pool)
-	syncer := sync.NewSyncer(fetcher, orgs, licences, cfgRepo, runs)
+	db := sync.NewPostgresDB(pool)
+	syncer := sync.NewSyncer(fetcher, db)
 
 	result, err := syncer.Run(context.Background())
 	if err != nil {

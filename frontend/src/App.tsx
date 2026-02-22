@@ -1,58 +1,36 @@
-import { useState, useEffect } from 'react'
-import './App.css'
-
-interface Organisation {
-  ID: number
-  Name: string
-  TownCity: string
-  County: string
-  CreatedAt: string | null
-}
-
-interface Licence {
-  ID: number
-  OrganisationID: number
-  LicenceType: string
-  Rating: string
-  Route: string
-  ValidFrom: string | null
-}
-
-interface DataResponse {
-  initial_run_time: string
-  total_organisations: number
-  from: number
-  to: number
-  organisations: Organisation[]
-  licences: Licence[]
-}
+import { useEffect, useState } from 'react'
+import { Alert, Box, Container, CssBaseline } from '@mui/material'
+import { createTheme, ThemeProvider } from '@mui/material/styles'
+import { Header } from './components/Header'
+import { SearchBar } from './components/SearchBar'
+import { AdminToolbar } from './components/AdminToolbar'
+import { DataTable } from './components/DataTable'
+import { checkAuth, fetchData, login, logout, syncData } from './api'
+import type { DataResponse, User } from './types'
 
 const PAGE_SIZE = 20
 
-function formatDate(isoString: string | null, fallback: string): string {
-  if (!isoString) return `Before ${fallback.slice(0, 10)}`
-  return isoString.slice(0, 10)
-}
+const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+const theme = createTheme({ palette: { mode: prefersDark ? 'dark' : 'light' } })
 
 function App() {
+  const [user, setUser] = useState<User | null>(null)
   const [data, setData] = useState<DataResponse | null>(null)
   const [from, setFrom] = useState(1)
   const [to, setTo] = useState(PAGE_SIZE)
+  const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
-  const [search, setSearch] = useState('')
 
-  async function fetchData(reqFrom: number, reqTo: number, reqSearch: string) {
+  async function loadData(reqFrom: number, reqTo: number, reqSearch: string) {
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch(`/api/data?from=${reqFrom}&to=${reqTo}&search=${encodeURIComponent(reqSearch)}`)
-      if (!response.ok) throw new Error('Failed to fetch data')
-      const json: DataResponse = await response.json()
-      if (json.from === reqFrom && json.to === reqTo) {
-        setData(json)
-      }
+      const params = new URLSearchParams({ from: String(reqFrom), to: String(reqTo) })
+      if (reqSearch) params.set('search', reqSearch)
+      const result = await fetchData(params)
+      if (result) setData(result)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
@@ -60,17 +38,44 @@ function App() {
     }
   }
 
+  useEffect(() => {
+    checkAuth().then(setUser).catch(() => {})
+    loadData(1, PAGE_SIZE, '')
+  }, [])
+
+  async function handleLogin(username: string, password: string) {
+    await login({ username, password })
+    const u = await checkAuth()
+    setUser(u)
+  }
+
+  async function handleLogout() {
+    await logout()
+    setUser(null)
+  }
+
   async function handleSync() {
     setSyncing(true)
     setError(null)
     try {
-      const response = await fetch('/api/sync', { method: 'POST' })
-      if (!response.ok) throw new Error('Sync failed')
+      await syncData()
+      await loadData(from, to, search)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
+      setError(err instanceof Error ? err.message : 'Sync failed')
     } finally {
       setSyncing(false)
     }
+  }
+
+  function handleSearch(value: string) {
+    setSearch(value)
+    setFrom(1)
+    setTo(PAGE_SIZE)
+    loadData(1, PAGE_SIZE, value)
+  }
+
+  function handleRefresh() {
+    loadData(from, to, search)
   }
 
   function handlePrevious() {
@@ -78,7 +83,7 @@ function App() {
     const newTo = newFrom + PAGE_SIZE - 1
     setFrom(newFrom)
     setTo(newTo)
-    fetchData(newFrom, newTo, search)
+    loadData(newFrom, newTo, search)
   }
 
   function handleNext() {
@@ -86,76 +91,48 @@ function App() {
     const newTo = newFrom + PAGE_SIZE - 1
     setFrom(newFrom)
     setTo(newTo)
-    fetchData(newFrom, newTo, search)
+    loadData(newFrom, newTo, search)
   }
 
-  useEffect(() => { fetchData(from, to, search) }, [])
+  function handlePageChange(page: number) {
+    const newFrom = (page - 1) * PAGE_SIZE + 1
+    const newTo = newFrom + PAGE_SIZE - 1
+    setFrom(newFrom)
+    setTo(newTo)
+    loadData(newFrom, newTo, search)
+  }
 
-  if (loading) return <p>Loading...</p>
-  if (error) return <p className="error">Error: {error}</p>
-  if (!data) return null
-
-  const total = data.total_organisations
+  const total = data?.total_organisations ?? 0
   const totalPages = Math.ceil(total / PAGE_SIZE)
   const currentPage = Math.ceil(from / PAGE_SIZE)
   const atStart = from <= 1
   const atEnd = to >= total
 
   return (
-    <div className="container">
-      <h1>UK Sponsor Licence Tracker</h1>
-      <div className="controls">
-        <button onClick={handleSync} disabled={syncing}>
-          {syncing ? 'Syncing...' : 'Sync Now'}
-        </button>
-        <button onClick={() => fetchData(from, to, search)} disabled={loading}>
-          Refresh
-        </button>
-        <input type="text" placeholder="Search by name or town..." onKeyDown={e => { if (e.key === 'Enter') { const val = (e.target as HTMLInputElement).value; setSearch(val); setFrom(1); setTo(PAGE_SIZE); fetchData(1, PAGE_SIZE, val); }}} size={30} />
-      </div>
-      <p>Showing {from}–{Math.min(to, total)} of {total} organisations</p>
-      <div className="pagination">
-        <button onClick={handlePrevious} disabled={atStart || loading}>Previous</button>
-        <span>Page <input type="text" key={currentPage} defaultValue={currentPage} onKeyDown={e => { if (e.key === 'Enter') { const page = parseInt((e.target as HTMLInputElement).value); if (!isNaN(page) && page >= 1 && page <= totalPages) { const newFrom = (page - 1) * PAGE_SIZE + 1; const newTo = newFrom + PAGE_SIZE - 1; setFrom(newFrom); setTo(newTo); fetchData(newFrom, newTo, search); }}}} size={4} /> of {totalPages}</span>
-        <button onClick={handleNext} disabled={atEnd || loading}>Next</button>
-      </div>
-      <table>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Organisation</th>
-            <th>Town/City</th>
-            <th>Registered Since</th>
-            <th>Type</th>
-            <th>Rating</th>
-            <th>Route</th>
-            <th>Licence Rating Valid From</th>
-          </tr>
-        </thead>
-        <tbody>
-          {(data.organisations ?? []).map((org, orgIndex) => {
-            const orgLicences = (data.licences ?? []).filter(l => l.OrganisationID === org.ID)
-            return orgLicences.map((lic, i) => (
-              <tr key={lic.ID}>
-                {i === 0 && <td rowSpan={orgLicences.length}>{data.from + orgIndex}</td>}
-                {i === 0 && <td rowSpan={orgLicences.length}>{org.Name}</td>}
-                {i === 0 && <td rowSpan={orgLicences.length}>{org.TownCity}</td>}
-                {i === 0 && <td rowSpan={orgLicences.length}>{formatDate(org.CreatedAt, data.initial_run_time)}</td>}
-                <td>{lic.LicenceType}</td>
-                <td>{lic.Rating}</td>
-                <td>{lic.Route}</td>
-                <td>{formatDate(lic.ValidFrom, data.initial_run_time)}</td>
-              </tr>
-            ))
-          })}
-        </tbody>
-      </table>
-      <div className="pagination">
-        <button onClick={handlePrevious} disabled={atStart || loading}>Previous</button>
-        <span>Page <input type="text" key={currentPage} defaultValue={currentPage} onKeyDown={e => { if (e.key === 'Enter') { const page = parseInt((e.target as HTMLInputElement).value); if (!isNaN(page) && page >= 1 && page <= totalPages) { const newFrom = (page - 1) * PAGE_SIZE + 1; const newTo = newFrom + PAGE_SIZE - 1; setFrom(newFrom); setTo(newTo); fetchData(newFrom, newTo, search); }}}} size={4} /> of {totalPages}</span>
-        <button onClick={handleNext} disabled={atEnd || loading}>Next</button>
-      </div>
-    </div>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <Header user={user} onLogin={handleLogin} onLogout={handleLogout} />
+      <Container maxWidth="xl" sx={{ mt: 2 }}>
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: 2 }}>
+          <SearchBar loading={loading} onSearch={handleSearch} onRefresh={handleRefresh} />
+          {user?.role === 10 && <AdminToolbar onSync={handleSync} syncing={syncing} />}
+        </Box>
+        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+        {data && (
+          <DataTable
+            data={data}
+            loading={loading}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            atStart={atStart}
+            atEnd={atEnd}
+            onPrevious={handlePrevious}
+            onNext={handleNext}
+            onPageChange={handlePageChange}
+          />
+        )}
+      </Container>
+    </ThemeProvider>
   )
 }
 

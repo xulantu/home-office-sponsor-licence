@@ -24,6 +24,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		Name:     "session_token",
 		Value:    token,
 		HttpOnly: true,
+		Secure:   s.secureCookies,
 		SameSite: http.SameSiteStrictMode,
 		Path:     "/",
 	})
@@ -44,6 +45,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 		Name:     "session_token",
 		Value:    "",
 		HttpOnly: true,
+		Secure:   s.secureCookies,
 		SameSite: http.SameSiteStrictMode,
 		Path:     "/",
 		Expires:  time.Unix(0, 0),

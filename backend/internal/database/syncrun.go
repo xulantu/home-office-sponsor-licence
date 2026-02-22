@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"time"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // SyncRun records the result of a single sync operation.
@@ -22,9 +20,9 @@ type SyncRun struct {
 }
 
 // InsertSyncRun records a completed sync run and returns its ID.
-func InsertSyncRun(ctx context.Context, pool *pgxpool.Pool, run SyncRun) (int, error) {
+func InsertSyncRun(ctx context.Context, q Querier, run SyncRun) (int, error) {
 	var id int
-	err := pool.QueryRow(ctx,
+	err := q.QueryRow(ctx,
 		`INSERT INTO sync_runs (start_time, end_time, new_organisations, new_licences, changed_licences, closed_organisations, closed_licences, error_count)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		 RETURNING id`,

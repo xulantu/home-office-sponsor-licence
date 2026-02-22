@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"sponsor-tracker/internal/csvfetch"
+	"sponsor-tracker/internal/database"
 )
 
 // switchableFetcher is a mock CSVFetcher whose records can be changed between runs.
@@ -23,13 +24,10 @@ func TestIntegration_OrgMovesAndReturns(t *testing.T) {
 	truncateAll(t, pool)
 
 	ctx := context.Background()
-	orgs := NewPostgresOrgRepository(pool)
-	licences := NewPostgresLicenceRepository(pool)
-	cfg := NewPostgresConfigRepository(pool)
-	runs := NewPostgresSyncRunRepository(pool)
+	db := NewPostgresDB(pool)
 
 	fetcher := &switchableFetcher{}
-	s := NewSyncer(fetcher, orgs, licences, cfg, runs)
+	s := NewSyncer(fetcher, db)
 
 	// Day 1: initial run — StaffCo in Leeds
 	fetcher.records = []csvfetch.Record{
@@ -210,4 +208,64 @@ func TestIntegration_OrgMovesAndReturns(t *testing.T) {
 	if lics[2].validTo != nil {
 		t.Error("licence 3: valid_to should be NULL (still active)")
 	}
+}
+
+func TestIntegration_SubsequentRun_ClosesStaleRecords(t *testing.T) {
+	pool := getTestPool(t)
+	defer pool.Close()
+	truncateAll(t, pool)
+	ctx := context.Background()
+
+	db := NewPostgresDB(pool)
+	fetcher := &switchableFetcher{
+		records: []csvfetch.Record{
+			{OrganisationName: "Acme Ltd", TownCity: "London", County: "", LicenceType: "Worker", Rating: "A rating", Route: "Skilled Worker"},
+			{OrganisationName: "Stale Corp", TownCity: "Leeds", County: "", LicenceType: "Worker", Rating: "A rating", Route: "Skilled Worker"},
+		},
+	}
+
+	s := NewSyncer(fetcher, db)
+	if _, err := s.Run(ctx); err != nil {
+		t.Fatalf("initial run: %v", err)
+	}
+
+	// Second run: only Acme Ltd remains
+	fetcher.records = []csvfetch.Record{
+		{OrganisationName: "Acme Ltd", TownCity: "London", County: "", LicenceType: "Worker", Rating: "A rating", Route: "Skilled Worker"},
+	}
+
+	result, err := s.Run(ctx)
+	if err != nil { t.Fatalf("subsequent run: %v", err) }
+
+	if result.ClosedOrganisations != 1 { t.Errorf("got %d closed orgs, want 1", result.ClosedOrganisations) }
+	if result.ClosedLicences != 1 { t.Errorf("got %d closed licences, want 1", result.ClosedLicences) }
+}
+
+func TestIntegration_InitialRun_SetsConfigAndSkipsStaleDetection(t *testing.T) {
+	pool := getTestPool(t)
+	defer pool.Close()
+	truncateAll(t, pool)
+	ctx := context.Background()
+
+	db := NewPostgresDB(pool)
+	fetcher := &switchableFetcher{
+		records: []csvfetch.Record{
+			{OrganisationName: "New Co", TownCity: "Leeds", County: "", LicenceType: "Worker", Rating: "A rating", Route: "Skilled Worker"},
+		},
+	}
+
+	s := NewSyncer(fetcher, db)
+	result, err := s.Run(ctx)
+	if err != nil { t.Fatalf("initial run: %v", err) }
+
+	if result.NewOrganisations != 1 { t.Errorf("got %d new orgs, want 1", result.NewOrganisations) }
+	if result.NewLicences != 1 { t.Errorf("got %d new licences, want 1", result.NewLicences) }
+	if result.ClosedOrganisations != 0 { t.Errorf("got %d closed orgs, want 0", result.ClosedOrganisations) }
+	if result.ClosedLicences != 0 { t.Errorf("got %d closed licences, want 0", result.ClosedLicences) }
+
+	// Verify InitialRunDateTime was set in the database
+	value, found, err := database.GetInitialRunTime(ctx, pool)
+	if err != nil { t.Fatalf("get initial run time: %v", err) }
+	if !found { t.Error("expected InitialRunDateTime to be set") }
+	if value == "" { t.Error("expected non-empty InitialRunDateTime") }
 }
