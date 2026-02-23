@@ -7,6 +7,7 @@ import (
 )
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1024)
 	var input struct {
 		Username string `json:"username"`
 		Password string `json:"password"`

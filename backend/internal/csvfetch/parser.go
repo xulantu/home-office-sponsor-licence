@@ -1,6 +1,7 @@
 package csvfetch
 
 import (
+	"context"
 	"encoding/csv"
 	"fmt"
 	"io"
@@ -11,8 +12,12 @@ import (
 
 // OpenStream opens an HTTP connection and returns a stream to read from.
 // The caller is responsible for closing the stream.
-func OpenStream(url string) (io.ReadCloser, error) {
-	resp, err := httpClient.Get(url)
+func OpenStream(ctx context.Context, url string) (io.ReadCloser, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+	resp, err := csvClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download: %w", err)
 	}
@@ -25,27 +30,28 @@ func OpenStream(url string) (io.ReadCloser, error) {
 
 // FetchAndParse downloads and parses the CSV in one call.
 // The connection is closed before returning.
-func FetchAndParse(url string) ([]Record, error) {
-	stream, err := OpenStream(url)
+func FetchAndParse(ctx context.Context, url string) ([]Record, error) {
+	stream, err := OpenStream(ctx, url)
 	if err != nil {
 		return nil, err
 	}
 	defer stream.Close()
 
-	return Parse(stream)
+	return Parse(ctx, stream)
 }
 
 // DiscoverAndFetch discovers the current CSV URL from gov.uk and returns the parsed records.
-func DiscoverAndFetch() ([]Record, error) {
-	url, err := DiscoverCSVURL()
+func DiscoverAndFetch(ctx context.Context) ([]Record, error) {
+	url, err := DiscoverCSVURL(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("discover CSV URL: %w", err)
 	}
-	return FetchAndParse(url)
+	return FetchAndParse(ctx, url)
 }
 
-// Parse reads the CSV and returns a slice of Records
-func Parse(r io.Reader) ([]Record, error) {
+// Parse reads the CSV and returns a slice of Records.
+// The context is checked every 2000 rows to allow cancellation during large files.
+func Parse(ctx context.Context, r io.Reader) ([]Record, error) {
 	reader := csv.NewReader(r)
 
 	// Skip header row
@@ -58,6 +64,13 @@ func Parse(r io.Reader) ([]Record, error) {
 	lineNumber := 1 // Header was line 1
 	for {
 		lineNumber++
+		if lineNumber%2000 == 0 {
+			if err := ctx.Err(); err != nil {
+				slog.Warn("CSV parsing cancelled", "line", lineNumber, "error", err)
+				return nil, fmt.Errorf("cancelled at row %d: %w", lineNumber, err)
+			}
+			slog.Info("CSV parsing progress", "rows_processed", lineNumber)
+		}
 		row, err := reader.Read()
 		if err == io.EOF {
 			break

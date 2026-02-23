@@ -1,6 +1,7 @@
 package csvfetch
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,8 +18,12 @@ const (
 var csvURLPattern = regexp.MustCompile(`https://assets\.publishing\.service\.gov\.uk/[^"]+\.csv`)
 
 // DiscoverCSVURL fetches the Home Office page and extracts the CSV download link
-func DiscoverCSVURL() (string, error) {
-	resp, err := httpClient.Get(HomeOfficePageURL)
+func DiscoverCSVURL(ctx context.Context) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, HomeOfficePageURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("create request: %w", err)
+	}
+	resp, err := discoveryClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch page: %w", err)
 	}

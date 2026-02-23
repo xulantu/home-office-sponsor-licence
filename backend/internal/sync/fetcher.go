@@ -1,6 +1,8 @@
 package sync
 
 import (
+	"context"
+
 	"sponsor-tracker/internal/csvfetch"
 )
 
@@ -11,6 +13,6 @@ func NewGovUKFetcher() *GovUKFetcher {
 	return &GovUKFetcher{}
 }
 
-func (f *GovUKFetcher) FetchRecords() ([]csvfetch.Record, error) {
-	return csvfetch.DiscoverAndFetch()
+func (f *GovUKFetcher) FetchRecords(ctx context.Context) ([]csvfetch.Record, error) {
+	return csvfetch.DiscoverAndFetch(ctx)
 }

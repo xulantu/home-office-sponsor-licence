@@ -14,7 +14,7 @@ type switchableFetcher struct {
 	records []csvfetch.Record
 }
 
-func (f *switchableFetcher) FetchRecords() ([]csvfetch.Record, error) {
+func (f *switchableFetcher) FetchRecords(_ context.Context) ([]csvfetch.Record, error) {
 	return f.records, nil
 }
 

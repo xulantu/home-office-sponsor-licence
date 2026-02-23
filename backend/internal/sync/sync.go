@@ -31,7 +31,7 @@ type Result struct {
 
 // CSVFetcher fetches sponsor licence records.
 type CSVFetcher interface {
-	FetchRecords() ([]csvfetch.Record, error)
+	FetchRecords(ctx context.Context) ([]csvfetch.Record, error)
 }
 
 // OrgRepository handles organisation database operations.
@@ -92,7 +92,8 @@ func (s *Syncer) Run(ctx context.Context) (*Result, error) {
 	startTime := time.Now().UTC()
 	result := &Result{}
 
-	records, err := s.fetcher.FetchRecords()
+	slog.Info("downloading sponsor list from gov.uk")
+	records, err := s.fetcher.FetchRecords(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("fetch CSV: %w", err)
 	}

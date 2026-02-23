@@ -1,6 +1,7 @@
 package csvfetch
 
 import (
+	"context"
 	"strings"
 	"testing"
 )
@@ -15,7 +16,7 @@ func TestParse(t *testing.T) {
 	// strings.NewReader creates an io.Reader from a string
 	reader := strings.NewReader(csv)
 
-	records, err := Parse(reader)
+	records, err := Parse(context.Background(), reader)
 	if err != nil {
 		t.Fatalf("Parse failed: %v", err)
 	}
