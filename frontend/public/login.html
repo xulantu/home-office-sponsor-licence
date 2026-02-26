@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login — UK Sponsor Licence Tracker</title>
+</head>
+<body>
+  <h1>Staff login</h1>
+  <form id="login-form">
+    <p><label>Username<br /><input id="username" type="text" autocomplete="username" required /></label></p>
+    <p><label>Password<br /><input id="password" type="password" autocomplete="current-password" required /></label></p>
+    <p><button type="submit" id="submit-btn">Login</button></p>
+    <p id="error" hidden style="color:red"></p>
+  </form>
+  <p><a href="/register.html">Register with invitation code</a> &middot; <a href="/forgot-password.html">Reset password</a> &middot; <a href="/">Back to tracker</a></p>
+  <script>
+    document.getElementById('login-form').addEventListener('submit', async function(e) {
+      e.preventDefault()
+      const btn = document.getElementById('submit-btn')
+      const error = document.getElementById('error')
+      btn.disabled = true
+      error.hidden = true
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: document.getElementById('username').value,
+            password: document.getElementById('password').value,
+          }),
+        })
+        if (!res.ok) throw new Error()
+        window.location.href = '/'
+      } catch {
+        error.textContent = 'Invalid credentials'
+        error.hidden = false
+        btn.disabled = false
+      }
+    })
+  </script>
+</body>
+</html>

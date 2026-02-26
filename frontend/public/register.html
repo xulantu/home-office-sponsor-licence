@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Register — UK Sponsor Licence Tracker</title>
+</head>
+<body>
+  <h1>Register</h1>
+  <form id="register-form">
+    <p><label>Username<br /><input id="username" type="text" autocomplete="username" required /></label></p>
+    <p><label>Password<br /><input id="password" type="password" autocomplete="new-password" required /></label></p>
+    <p><label>Invitation code<br /><input id="invitation-code" type="text" required /></label></p>
+    <p><button type="submit" id="submit-btn">Register</button></p>
+    <p id="error" hidden style="color:red"></p>
+  </form>
+  <p><a href="/login.html">Back to login</a></p>
+  <script>
+    document.getElementById('register-form').addEventListener('submit', async function(e) {
+      e.preventDefault()
+      const btn = document.getElementById('submit-btn')
+      const error = document.getElementById('error')
+      btn.disabled = true
+      error.hidden = true
+      try {
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: document.getElementById('username').value,
+            password: document.getElementById('password').value,
+            invitation_code: document.getElementById('invitation-code').value,
+          }),
+        })
+        if (!res.ok) throw new Error(await res.text())
+        window.location.href = '/'
+      } catch (err) {
+        error.textContent = err.message || 'Registration failed'
+        error.hidden = false
+        btn.disabled = false
+      }
+    })
+  </script>
+</body>
+</html>

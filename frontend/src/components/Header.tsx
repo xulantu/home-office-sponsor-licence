@@ -4,11 +4,10 @@ import type { User } from '../types'
 
 interface HeaderProps {
   user: User | null
-  onLogin: (username: string, password: string) => Promise<void>
   onLogout: () => Promise<void>
 }
 
-export function Header({ user, onLogin, onLogout }: HeaderProps) {
+export function Header({ user, onLogout }: HeaderProps) {
   return (
     <AppBar position="static">
       <Toolbar>
@@ -16,7 +15,7 @@ export function Header({ user, onLogin, onLogout }: HeaderProps) {
           UK Sponsor Licence Tracker
         </Typography>
         <Box>
-          <AuthBar user={user} onLogin={onLogin} onLogout={onLogout} />
+          <AuthBar user={user} onLogout={onLogout} />
         </Box>
       </Toolbar>
     </AppBar>

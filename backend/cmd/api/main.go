@@ -37,7 +37,9 @@ func main() {
 	dataReader := database.NewPostgresDataReader(pool)
 	userStore := auth.NewPostgresUserStore(pool)
 	sessionStore := auth.NewPostgresSessionStore(pool)
-	authService := auth.NewService(userStore, sessionStore)
+	invCodeStore := auth.NewPostgresInvitationCodeStore(pool)
+	resetStore := auth.NewPostgresPasswordResetStore(pool)
+	authService := auth.NewService(userStore, sessionStore, invCodeStore, resetStore)
 	server := api.NewServer(syncer, dataReader, authService, cfg.Server.SecureCookies)
 
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)

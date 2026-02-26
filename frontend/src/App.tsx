@@ -5,7 +5,7 @@ import { Header } from './components/Header'
 import { SearchBar } from './components/SearchBar'
 import { AdminToolbar } from './components/AdminToolbar'
 import { DataTable } from './components/DataTable'
-import { checkAuth, fetchData, login, logout, syncData } from './api'
+import { checkAuth, fetchData, logout, syncData } from './api'
 import type { DataResponse, User } from './types'
 
 const PAGE_SIZE = 20
@@ -42,12 +42,6 @@ function App() {
     checkAuth().then(setUser).catch(() => {})
     loadData(1, PAGE_SIZE, '')
   }, [])
-
-  async function handleLogin(username: string, password: string) {
-    await login({ username, password })
-    const u = await checkAuth()
-    setUser(u)
-  }
 
   async function handleLogout() {
     await logout()
@@ -111,7 +105,7 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <Header user={user} onLogin={handleLogin} onLogout={handleLogout} />
+      <Header user={user} onLogout={handleLogout} />
       <Container maxWidth="xl" sx={{ mt: 2 }}>
         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: 2 }}>
           <SearchBar loading={loading} onSearch={handleSearch} onRefresh={handleRefresh} />

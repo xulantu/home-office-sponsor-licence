@@ -13,11 +13,14 @@ import (
 )
 
 type fakeAuth struct {
-	loginToken string
-	loginErr   error
-	logoutErr  error
-	authUser   database.User
-	authErr    error
+	loginToken    string
+	loginErr      error
+	logoutErr     error
+	authUser      database.User
+	authErr       error
+	registerToken string
+	registerErr   error
+	resetErr      error
 }
 
 func (f *fakeAuth) Login(_ context.Context, _, _ string) (string, error) {
@@ -30,6 +33,14 @@ func (f *fakeAuth) Logout(_ context.Context, _ string) error {
 
 func (f *fakeAuth) Authenticate(_ context.Context, _ string) (database.User, error) {
 	return f.authUser, f.authErr
+}
+
+func (f *fakeAuth) Register(_ context.Context, _, _, _ string) (string, error) {
+	return f.registerToken, f.registerErr
+}
+
+func (f *fakeAuth) ResetPassword(_ context.Context, _, _, _ string) error {
+	return f.resetErr
 }
 
 type fakeData struct{}
@@ -187,6 +198,90 @@ func TestHandleMe(t *testing.T) {
 				if got.ID != tt.wantUser.ID || got.Username != tt.wantUser.Username || got.Role != tt.wantUser.Role {
 					t.Errorf("got %+v, want %+v", got, *tt.wantUser)
 				}
+			}
+		})
+	}
+}
+
+func TestHandleRegister(t *testing.T) {
+	tests := []struct {
+		name       string
+		body       string
+		auth       *fakeAuth
+		wantCode   int
+		wantCookie bool
+	}{
+		{
+			name:       "success",
+			body:       `{"username":"alice","password":"pass","invitation_code":"code123"}`,
+			auth:       &fakeAuth{registerToken: "tok"},
+			wantCode:   http.StatusNoContent,
+			wantCookie: true,
+		},
+		{
+			name:     "invalid invitation code",
+			body:     `{"username":"alice","password":"pass","invitation_code":"bad"}`,
+			auth:     &fakeAuth{registerErr: errors.New("invalid or expired invitation code")},
+			wantCode: http.StatusUnauthorized,
+		},
+		{
+			name:     "invalid JSON",
+			body:     `not-json`,
+			auth:     &fakeAuth{},
+			wantCode: http.StatusBadRequest,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newTestServer(tt.auth)
+			r := httptest.NewRequest(http.MethodPost, "/api/auth/register", strings.NewReader(tt.body))
+			w := httptest.NewRecorder()
+			s.handleRegister(w, r)
+			if w.Code != tt.wantCode {
+				t.Errorf("status = %d, want %d", w.Code, tt.wantCode)
+			}
+			hasCookie := w.Header().Get("Set-Cookie") != ""
+			if hasCookie != tt.wantCookie {
+				t.Errorf("hasCookie = %v, want %v", hasCookie, tt.wantCookie)
+			}
+		})
+	}
+}
+
+func TestHandleResetPassword(t *testing.T) {
+	tests := []struct {
+		name     string
+		body     string
+		auth     *fakeAuth
+		wantCode int
+	}{
+		{
+			name:     "success",
+			body:     `{"username":"alice","new_password":"newpass","reset_token":"tok123"}`,
+			auth:     &fakeAuth{},
+			wantCode: http.StatusNoContent,
+		},
+		{
+			name:     "invalid token",
+			body:     `{"username":"alice","new_password":"newpass","reset_token":"bad"}`,
+			auth:     &fakeAuth{resetErr: errors.New("invalid request")},
+			wantCode: http.StatusUnauthorized,
+		},
+		{
+			name:     "invalid JSON",
+			body:     `not-json`,
+			auth:     &fakeAuth{},
+			wantCode: http.StatusBadRequest,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newTestServer(tt.auth)
+			r := httptest.NewRequest(http.MethodPost, "/api/auth/reset-password", strings.NewReader(tt.body))
+			w := httptest.NewRecorder()
+			s.handleResetPassword(w, r)
+			if w.Code != tt.wantCode {
+				t.Errorf("status = %d, want %d", w.Code, tt.wantCode)
 			}
 		})
 	}

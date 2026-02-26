@@ -22,11 +22,13 @@ type DataReader interface {
 	GetAll(ctx context.Context, from, to int, search string) (*database.DataResponse, error)
 }
 
-// Authenticator handles login, logout, and session validation.
+// Authenticator handles login, logout, session validation, registration, and password reset.
 type Authenticator interface {
 	Login(ctx context.Context, username, password string) (string, error)
 	Logout(ctx context.Context, token string) error
 	Authenticate(ctx context.Context, token string) (database.User, error)
+	Register(ctx context.Context, username, password, invitationCode string) (string, error)
+	ResetPassword(ctx context.Context, username, newPassword, resetToken string) error
 }
 
 // Server is the HTTP server handling API requests.
@@ -50,6 +52,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /api/auth/login", s.handleLogin)
 	mux.HandleFunc("POST /api/auth/logout", s.handleLogout)
 	mux.HandleFunc("GET /api/auth/me", s.handleMe)
+	mux.HandleFunc("POST /api/auth/register", s.handleRegister)
+	mux.HandleFunc("POST /api/auth/reset-password", s.handleResetPassword)
 	return mux
 }
 
