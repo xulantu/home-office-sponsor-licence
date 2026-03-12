@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"sponsor-tracker/internal/database"
 )
@@ -15,6 +16,18 @@ type PostgresDB struct {
 
 func NewPostgresDB(pool *pgxpool.Pool) *PostgresDB {
 	return &PostgresDB{pool: pool}
+}
+
+func (db *PostgresDB) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
+	return db.pool.Query(ctx, sql, args...)
+}
+
+func (db *PostgresDB) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+	return db.pool.QueryRow(ctx, sql, args...)
+}
+
+func (db *PostgresDB) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+	return db.pool.Exec(ctx, sql, args...)
 }
 
 func (db *PostgresDB) Begin(ctx context.Context) (Transaction, error) {

@@ -164,3 +164,29 @@ func GetAllActiveOrganisations(ctx context.Context, q Querier, from, to int, sea
 	}
 	return orgs, rows.Err()
 }
+
+// RestoreOrganisationsClosedAfter re-activates organisations that were closed at or after
+// the given time by setting deleted_at back to NULL. Returns the number of rows restored.
+func RestoreOrganisationsClosedAfter(ctx context.Context, q Querier, since time.Time) (int, error) {
+	tag, err := q.Exec(ctx,
+		`UPDATE organisations SET deleted_at = NULL WHERE deleted_at >= $1`,
+		since,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("restore organisations closed after %v: %w", since, err)
+	}
+	return int(tag.RowsAffected()), nil
+}
+
+// DeleteOrganisationsCreatedAfter removes organisations created at or after
+// the given time. Returns the number of rows deleted.
+func DeleteOrganisationsCreatedAfter(ctx context.Context, q Querier, since time.Time) (int, error) {
+	tag, err := q.Exec(ctx,
+		`DELETE FROM organisations WHERE created_at >= $1`,
+		since,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("delete organisations created after %v: %w", since, err)
+	}
+	return int(tag.RowsAffected()), nil
+}

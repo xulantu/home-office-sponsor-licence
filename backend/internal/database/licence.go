@@ -162,3 +162,29 @@ func GetActiveLicencesByOrgIDs(ctx context.Context, q Querier, orgIDs []int) ([]
 	}
 	return licences, rows.Err()
 }
+
+// RestoreLicencesClosedAfter re-activates licences that were closed at or after
+// the given time by setting valid_to back to NULL. Returns the number of rows restored.
+func RestoreLicencesClosedAfter(ctx context.Context, q Querier, since time.Time) (int, error) {
+	tag, err := q.Exec(ctx,
+		`UPDATE licences SET valid_to = NULL WHERE valid_to >= $1`,
+		since,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("restore licences closed after %v: %w", since, err)
+	}
+	return int(tag.RowsAffected()), nil
+}
+
+// DeleteLicencesCreatedAfter removes licences created at or after
+// the given time. Returns the number of rows deleted.
+func DeleteLicencesCreatedAfter(ctx context.Context, q Querier, since time.Time) (int, error) {
+	tag, err := q.Exec(ctx,
+		`DELETE FROM licences WHERE valid_from >= $1`,
+		since,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("delete licences created after %v: %w", since, err)
+	}
+	return int(tag.RowsAffected()), nil
+}

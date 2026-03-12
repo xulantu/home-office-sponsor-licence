@@ -69,8 +69,10 @@ type Transaction interface {
 	Rollback(ctx context.Context) error
 }
 
-// DB can begin a database transaction. Satisfied by *pgxpool.Pool.
+// DB can begin a database transaction and run direct queries.
+// Satisfied by *pgxpool.Pool (via PostgresDB adapter).
 type DB interface {
+	database.Querier
 	Begin(ctx context.Context) (Transaction, error)
 }
 
@@ -126,15 +128,6 @@ func (s *Syncer) Run(ctx context.Context) (*Result, error) {
 			continue
 		}
 		seenOrgs[orgID] = true
-		if seenLicences[licID] {
-			slog.Warn("licence appeared more than once",
-				"id", licID,
-				"org_id", orgID,
-				"org_name", rec.OrganisationName,
-				"licence_type", rec.LicenceType,
-				"route", rec.Route,
-			)
-		}
 		seenLicences[licID] = true
 	}
 
@@ -176,6 +169,69 @@ func (s *Syncer) Run(ctx context.Context) (*Result, error) {
 		"errors", len(result.Errors),
 	)
 	return result, nil
+}
+
+// ShowRuns returns the most recent sync runs.
+func (s *Syncer) ShowRuns(ctx context.Context, count int) ([]database.SyncRun, error) {
+	return database.GetRecentSyncRuns(ctx, s.db, count)
+}
+
+// RollbackResult holds statistics from a rollback operation.
+type RollbackResult struct {
+	RolledBackRunID      int
+	OrganisationsDeleted  int
+	OrganisationsRestored int
+	LicencesDeleted       int
+	LicencesRestored      int
+}
+
+// Rollback undoes the most recent sync run within a single transaction.
+func (s *Syncer) Rollback(ctx context.Context) (*RollbackResult, error) {
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	run, found, err := database.GetLatestSyncRun(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, fmt.Errorf("no sync runs to roll back")
+	}
+
+	licDel, err := database.DeleteLicencesCreatedAfter(ctx, tx, run.StartTime)
+	if err != nil {
+		return nil, err
+	}
+	licRes, err := database.RestoreLicencesClosedAfter(ctx, tx, run.StartTime)
+	if err != nil {
+		return nil, err
+	}
+	orgDel, err := database.DeleteOrganisationsCreatedAfter(ctx, tx, run.StartTime)
+	if err != nil {
+		return nil, err
+	}
+	orgRes, err := database.RestoreOrganisationsClosedAfter(ctx, tx, run.StartTime)
+	if err != nil {
+		return nil, err
+	}
+	if err := database.DeleteSyncRun(ctx, tx, run.ID); err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit rollback: %w", err)
+	}
+
+	return &RollbackResult{
+		RolledBackRunID:      run.ID,
+		OrganisationsDeleted:  orgDel,
+		OrganisationsRestored: orgRes,
+		LicencesDeleted:       licDel,
+		LicencesRestored:      licRes,
+	}, nil
 }
 
 // processRecord syncs a single CSV record. Returns the active orgID and licenceID
