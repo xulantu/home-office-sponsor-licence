@@ -94,39 +94,45 @@ func Parse(ctx context.Context, r io.Reader) ([]Record, error) {
 	return records, nil
 }
 
-// parseRow converts a CSV row into a Record
+// parseRow converts a CSV row into a Record.
+// Supports both the 5-column format ("Type & Rating" combined)
+// and the 6-column format (separate "Tier" and "Rating").
 func parseRow(row []string) (Record, error) {
-	if len(row) < 5 {
-		return Record{}, fmt.Errorf("row has %d columns, expected 5", len(row))
+	switch {
+	case len(row) >= 6:
+		return Record{
+			OrganisationName: strings.TrimSpace(row[0]),
+			TownCity:         strings.TrimSpace(row[1]),
+			County:           strings.TrimSpace(row[2]),
+			LicenceType:      strings.TrimSpace(row[3]),
+			Rating:           strings.TrimSpace(row[4]),
+			Route:            strings.TrimSpace(row[5]),
+		}, nil
+	case len(row) >= 5:
+		licenceType, rating := parseTypeAndRating(row[3])
+		return Record{
+			OrganisationName: strings.TrimSpace(row[0]),
+			TownCity:         strings.TrimSpace(row[1]),
+			County:           strings.TrimSpace(row[2]),
+			LicenceType:      licenceType,
+			Rating:           rating,
+			Route:            strings.TrimSpace(row[4]),
+		}, nil
+	default:
+		return Record{}, fmt.Errorf("row has %d columns, expected at least 5", len(row))
 	}
-
-	licenceType, rating := parseTypeAndRating(row[3])
-
-	return Record{
-		OrganisationName: strings.TrimSpace(row[0]),
-		TownCity:         strings.TrimSpace(row[1]),
-		County:           strings.TrimSpace(row[2]),
-		LicenceType:      licenceType,
-		Rating:           rating,
-		Route:            strings.TrimSpace(row[4]),
-	}, nil
 }
 
 // parseTypeAndRating splits "Worker (A rating)" into ("Worker", "A rating")
 func parseTypeAndRating(s string) (licenceType, rating string) {
 	s = strings.TrimSpace(s)
-
-	// Find the opening parenthesis
 	parenIndex := strings.Index(s, "(")
 	if parenIndex == -1 {
 		return s, ""
 	}
-
 	licenceType = strings.TrimSpace(s[:parenIndex])
-
-	// Extract rating from between parentheses
 	rating = strings.TrimSpace(s[parenIndex+1:])
 	rating = strings.TrimSuffix(rating, ")")
-
 	return licenceType, rating
 }
+

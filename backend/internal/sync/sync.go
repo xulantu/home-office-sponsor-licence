@@ -126,6 +126,15 @@ func (s *Syncer) Run(ctx context.Context) (*Result, error) {
 			continue
 		}
 		seenOrgs[orgID] = true
+		if seenLicences[licID] {
+			slog.Warn("licence appeared more than once",
+				"id", licID,
+				"org_id", orgID,
+				"org_name", rec.OrganisationName,
+				"licence_type", rec.LicenceType,
+				"route", rec.Route,
+			)
+		}
 		seenLicences[licID] = true
 	}
 
